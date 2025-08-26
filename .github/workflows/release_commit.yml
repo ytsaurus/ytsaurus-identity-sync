@@ -65,7 +65,7 @@ jobs:
         uses: appany/helm-oci-chart-releaser@v0.3.0
         with:
           name: ytsaurus-identity-sync-chart
-          repository: tractoai
+          repository: ytsaurus
           tag: 0.0.0-${{ steps.meta.outputs.version }}
           path: ytsaurus-identity-sync-chart
           registry: ${{ env.REGISTRY }}
