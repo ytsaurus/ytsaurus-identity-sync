@@ -1,4 +1,4 @@
-module github.com/tractoai/ytsaurus-identity-sync
+module github.com/ytsaurus/ytsaurus-identity-sync
 
 go 1.22
 
