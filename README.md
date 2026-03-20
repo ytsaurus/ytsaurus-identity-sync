@@ -7,7 +7,7 @@ helm upgrade --install --wait \
  -f ytsaurus-identity-sync.values.yaml \
  -n idsync --create-namespace \
  idsync oci://ghcr.io/ytsaurus/ytsaurus-identity-sync-chart \
---version 0.2.0
+--version 0.0.2
 ```
 Examples for helm values can be found in the [examples](examples) directory.  
 All configuration options for app can be found in [main/config.go](main/config.go) file.
@@ -15,8 +15,7 @@ All configuration options for app can be found in [main/config.go](main/config.g
 
 ## Official release
 To issue an official release of app — create new release at the [releases](https://github.com/ytsaurus/ytsaurus-identity-sync/releases) tab with some release notes.  
-For the app release create a tag matching pattern `release/X.X.X`.  
-For the chart release create a tag matching pattern `release-helm/X.X.X`.
+For the release create a tag matching pattern `release/X.X.X`.  
 Images will be build automatically on release tag creation.
 
 ## Development releases
