@@ -120,7 +120,7 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 
 func (a *App) syncGroups(usersMap map[ObjectID]YtsaurusUser) error {
 	a.logger.Info("Start syncing groups")
-	azureGroups, err := a.source.GetGroupsWithMembers()
+	sourceGroups, err := a.source.GetGroupsWithMembers()
 	if err != nil {
 		return errors.Wrap(err, "failed to get Source groups")
 	}
@@ -129,7 +129,7 @@ func (a *App) syncGroups(usersMap map[ObjectID]YtsaurusUser) error {
 		return errors.Wrap(err, "failed to get YTsaurus groups")
 	}
 
-	diff, err := a.diffGroups(azureGroups, ytGroups, usersMap)
+	diff, err := a.diffGroups(sourceGroups, ytGroups, usersMap)
 	if err != nil {
 		return errors.Wrap(err, "failed to calculate groups diff")
 	}
