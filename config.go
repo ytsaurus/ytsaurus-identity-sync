@@ -10,8 +10,9 @@ type Config struct {
 	Logging  LoggingConfig  `yaml:"logging"`
 
 	// One of them should be specified.
-	Azure *AzureConfig `yaml:"azure,omitempty"`
-	Ldap  *LdapConfig  `yaml:"ldap,omitempty"`
+	Azure    *AzureConfig    `yaml:"azure,omitempty"`
+	Ldap     *LdapConfig     `yaml:"ldap,omitempty"`
+	Keycloak *KeycloakConfig `yaml:"keycloak,omitempty"`
 }
 
 type AppConfig struct {
@@ -33,6 +34,9 @@ type AppConfig struct {
 	// BanBeforeRemoveDuration is a duration of a graceful ban before finally removing the user from YTsaurus.
 	// If it is not specified, user will be removed straight after user was found to be missing from source (Azure or Ldap).
 	BanBeforeRemoveDuration time.Duration `yaml:"ban_before_remove_duration"`
+
+	// SaveGroupsNesting = false means all group trees will be flatten.
+	SaveGroupsNesting bool `yaml:"save_groups_nesting"`
 }
 
 type ReplacementPair struct {
@@ -100,6 +104,15 @@ type LdapConfig struct {
 	Users              LdapUsersConfig  `yaml:"users"`
 	Groups             LdapGroupsConfig `yaml:"groups"`
 	BaseDN             string           `yaml:"base_dn"`
+}
+
+type KeycloakConfig struct {
+	URL                string `yaml:"url"`
+	Realm              string `yaml:"realm"`
+	ClientID           string `yaml:"client_id"`
+	ClientSecretEnvVar string `yaml:"client_secret_env_var"`
+	UsersFilter        string `yaml:"users_filter"`
+	GroupsFilter       string `yaml:"groups_filter"`
 }
 
 type YtsaurusConfig struct {

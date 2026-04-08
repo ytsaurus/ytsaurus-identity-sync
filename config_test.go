@@ -70,6 +70,7 @@ func TestLdapConfig(t *testing.T) {
 	require.Equal(t, 7*24*time.Hour, cfg.App.BanBeforeRemoveDuration)
 
 	require.True(t, cfg.Azure == nil)
+	require.True(t, cfg.Keycloak == nil)
 
 	require.Equal(t, "dc=example,dc=org", cfg.Ldap.BaseDN)
 	require.Equal(t, "cn=admin,dc=example,dc=org", cfg.Ldap.BindDN)
@@ -84,6 +85,49 @@ func TestLdapConfig(t *testing.T) {
 	require.Equal(t, "(objectClass=posixGroup)", cfg.Ldap.Groups.Filter)
 	require.Equal(t, "cn", cfg.Ldap.Groups.GroupnameAttributeType)
 	require.Equal(t, "memberUid", cfg.Ldap.Groups.MemberUIDAttributeType)
+
+	require.Equal(t, "localhost:10110", cfg.Ytsaurus.Proxy)
+	require.Equal(t, true, cfg.Ytsaurus.ApplyUserChanges)
+	require.Equal(t, true, cfg.Ytsaurus.ApplyGroupChanges)
+	require.Equal(t, true, cfg.Ytsaurus.ApplyMemberChanges)
+	require.Equal(t, 1*time.Second, cfg.Ytsaurus.Timeout)
+	require.Equal(t, "DEBUG", cfg.Ytsaurus.LogLevel)
+
+	require.Equal(t, "WARN", cfg.Logging.Level)
+	require.Equal(t, true, cfg.Logging.IsProduction)
+
+	logger, err := configureLogger(&cfg.Logging)
+	require.NoError(t, err)
+	logger.Debugw("test logging message", "key", "val")
+}
+
+func TestKeycloakConfig(t *testing.T) {
+	configPath := "keycloak_config.example.yaml"
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+
+	require.Equal(t, 5*time.Minute, cfg.App.SyncInterval)
+	require.Equal(t, []ReplacementPair{
+		{From: "@acme.com", To: ""},
+		{From: "@", To: ":"},
+	}, cfg.App.UsernameReplacements)
+	require.Equal(t, []ReplacementPair{
+		{From: "|all", To: ""},
+	}, cfg.App.GroupnameReplacements)
+	require.Equal(t, 10, cfg.App.RemoveLimit)
+	require.Equal(t, 7*24*time.Hour, cfg.App.BanBeforeRemoveDuration)
+	require.True(t, cfg.App.SaveGroupsNesting)
+
+	require.True(t, cfg.Azure == nil)
+	require.True(t, cfg.Ldap == nil)
+
+	require.Equal(t, "http://localhost:8080", cfg.Keycloak.URL)
+	require.Equal(t, "test", cfg.Keycloak.Realm)
+	require.Equal(t, "test", cfg.Keycloak.ClientID)
+	require.Equal(t, "KEYCLOAK_CLIENT_SECRET", cfg.Keycloak.ClientSecretEnvVar)
+	require.Equal(t, "username:test_ email:@acme.com", cfg.Keycloak.UsersFilter)
+	require.Equal(t, "test_", cfg.Keycloak.GroupsFilter)
 
 	require.Equal(t, "localhost:10110", cfg.Ytsaurus.Proxy)
 	require.Equal(t, true, cfg.Ytsaurus.ApplyUserChanges)

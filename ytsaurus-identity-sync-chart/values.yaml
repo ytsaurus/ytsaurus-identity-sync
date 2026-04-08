@@ -70,13 +70,16 @@ yt:
   proxy: yt-proxy.company.com
   token: "yt-secret-token"
 
-# NB: 'ldap' and 'azure' are supported
+# NB: 'ldap', 'azure' and 'keycloak' are supported
 syncSource: azure
 
 ldap:
   password: "not-here"
 
 azure:
+  clientSecret: "not-here"
+
+keycloak:
   clientSecret: "not-here"
 
 # not recommended for production environment

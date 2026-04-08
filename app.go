@@ -26,6 +26,7 @@ type App struct {
 	groupnameReplaces []ReplacementPair
 	removeLimit       int
 	banDuration       time.Duration
+	saveGroupsNesting bool
 
 	ytsaurus *Ytsaurus
 	source   Source
@@ -36,8 +37,18 @@ type App struct {
 }
 
 func NewApp(cfg *Config, logger appLoggerType) (*App, error) {
-	if (cfg.Azure == nil) == (cfg.Ldap == nil) {
-		return nil, errors.New("one and only one source should be specified")
+	sourcesCount := 0
+	if cfg.Azure != nil {
+		sourcesCount++
+	}
+	if cfg.Ldap != nil {
+		sourcesCount++
+	}
+	if cfg.Keycloak != nil {
+		sourcesCount++
+	}
+	if sourcesCount != 1 {
+		return nil, errors.New("one and only one source (azure, ldap or keycloak) should be specified")
 	}
 
 	var err error
@@ -51,6 +62,13 @@ func NewApp(cfg *Config, logger appLoggerType) (*App, error) {
 
 	if cfg.Ldap != nil {
 		source, err = NewLdap(cfg.Ldap, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if cfg.Keycloak != nil {
+		source, err = NewKeycloak(cfg.Keycloak, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -75,6 +93,7 @@ func NewAppCustomized(cfg *Config, logger appLoggerType, source Source, clock cl
 		groupnameReplaces: cfg.App.GroupnameReplacements,
 		removeLimit:       cfg.App.RemoveLimit,
 		banDuration:       cfg.App.BanBeforeRemoveDuration,
+		saveGroupsNesting: cfg.App.SaveGroupsNesting,
 
 		ytsaurus: yt,
 		source:   source,

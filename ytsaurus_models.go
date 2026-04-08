@@ -49,6 +49,6 @@ func NewEmptyYtsaurusGroupWithMembers(group YtsaurusGroup) YtsaurusGroupWithMemb
 }
 
 type YtsaurusMembership struct {
-	GroupName string
-	Username  string
+	GroupName  string
+	MemberName string
 }

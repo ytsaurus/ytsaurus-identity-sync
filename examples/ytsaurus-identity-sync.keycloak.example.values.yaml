@@ -1,0 +1,43 @@
+image:
+  tag: "2024-04-19-569ba16"
+
+yt:
+  proxy: yt-proxy.acme.com
+  # development configuration, use externalSecrets or sealedSecrets for production.
+  token: "yt-secret-token"
+
+syncSource: keycloak
+
+keycloak:
+  # development configuration, use externalSecrets or sealedSecrets for production.
+  clientSecret: "keycloak-secret-token"
+
+syncConfig: |-
+  app:
+    sync_interval: 10m
+    username_replacements:
+      - from: "@acme.com"
+        to: ""
+    remove_limit: 10
+    ban_before_remove_duration: 168h # 7d
+    save_groups_nesting: true
+
+  keycloak:
+    url: "http://localhost:8080"
+    realm: "test_realm"
+    client_id: "test_client"
+    client_secret_env_var: "KEYCLOAK_CLIENT_SECRET"
+    users_filter: "username:test_ email:@acme.com"
+    groups_filter: "test_"
+
+  ytsaurus:
+    proxy: "{{ .Values.yt.proxy }}"
+    apply_user_changes: true
+    apply_group_changes: true
+    apply_member_changes: true
+    timeout: 3s
+    source_attribute_name: "keycloak"
+
+  logging:
+    is_production: true
+    level: DEBUG
