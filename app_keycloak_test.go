@@ -289,7 +289,48 @@ var (
 			},
 		},
 		{
+			name:          "memberships-flat-subgroups",
+			ytGroupsSetUp: []YtsaurusGroupWithMembers{},
+			sourceGroupsSetUp: []SourceGroupWithMembers{
+				{
+					SourceGroup: createKeycloakGroup("devs-subgroup1-subgroup1"),
+					Members:     NewStringSetFromItems(),
+				},
+				{
+					SourceGroup: createKeycloakGroup("devs-subgroup1"),
+					Members: NewStringSetFromItems(
+						fullGroupName("devs-subgroup1-subgroup1"),
+					),
+				},
+				{
+					SourceGroup: createKeycloakGroup("devs"),
+					Members: NewStringSetFromItems(
+						fullGroupName("devs-subgroup1"),
+					),
+				},
+			},
+			ytGroupsExpected: []YtsaurusGroupWithMembers{
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1-subgroup1"),
+					Members:       NewStringSetFromItems(),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1"),
+					Members:       NewStringSetFromItems(),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs"),
+					Members:       NewStringSetFromItems(),
+				},
+			},
+		},
+		{
 			name: "memberships-add-remove-subgroups",
+			appConfig: &AppConfig{
+				UsernameReplacements:  defaultUsernameReplacements,
+				GroupnameReplacements: defaultGroupnameReplacements,
+				SaveGroupsNesting:     true,
+			},
 			sourceUsersSetUp: []SourceUser{
 				createKeycloakUser(aliceName),
 				createKeycloakUser(bobName),
@@ -377,6 +418,11 @@ var (
 		},
 		{
 			name: "memberships-move-subgroups",
+			appConfig: &AppConfig{
+				UsernameReplacements:  defaultUsernameReplacements,
+				GroupnameReplacements: defaultGroupnameReplacements,
+				SaveGroupsNesting:     true,
+			},
 			ytGroupsSetUp: []YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1-subgroup1"),

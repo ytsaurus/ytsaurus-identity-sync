@@ -327,16 +327,16 @@ func (a *App) diffGroupMembers(
 		actualGroupname := ytGroupWithMembers.YtsaurusGroup.Name
 
 		membersCreate, membersRemove := a.isGroupMembersChanged(sourceGroupWithMembers, ytGroupWithMembers, usersMap, ytGroupsWithMembersMap)
-		for _, username := range membersCreate {
+		for _, memberName := range membersCreate {
 			membersToAdd = append(membersToAdd, YtsaurusMembership{
 				GroupName:  actualGroupname,
-				MemberName: username,
+				MemberName: memberName,
 			})
 		}
-		for _, username := range membersRemove {
+		for _, memberName := range membersRemove {
 			membersToRemove = append(membersToRemove, YtsaurusMembership{
 				GroupName:  actualGroupname,
-				MemberName: username,
+				MemberName: memberName,
 			})
 		}
 	}
@@ -483,7 +483,7 @@ func (a *App) buildYtsaurusGroupMembers(sourceGroupWithMembers SourceGroupWithMe
 	for azureID := range sourceGroupWithMembers.Members.Iter() {
 		if ytUser, ok := usersMap[azureID]; ok {
 			members.Add(ytUser.Username)
-		} else if ytGroup, ok := groupsMap[azureID]; ok {
+		} else if ytGroup, ok := groupsMap[azureID]; ok && a.saveGroupsNesting { // save group as subgroup of other group
 			members.Add(ytGroup.Name)
 		}
 		// User or nested group is unknown to the YTsaurus (can be accountEnabled=false).

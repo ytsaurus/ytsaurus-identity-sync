@@ -117,6 +117,7 @@ func TestKeycloakConfig(t *testing.T) {
 	}, cfg.App.GroupnameReplacements)
 	require.Equal(t, 10, cfg.App.RemoveLimit)
 	require.Equal(t, 7*24*time.Hour, cfg.App.BanBeforeRemoveDuration)
+	require.True(t, cfg.App.SaveGroupsNesting)
 
 	require.True(t, cfg.Azure == nil)
 	require.True(t, cfg.Ldap == nil)

@@ -10,6 +10,7 @@ app:
       to: ""
   remove_limit: 10
   ban_before_remove_duration: 168h # 7d
+  save_groups_nesting: true
 
 keycloak:
   url: "http://localhost:8080"

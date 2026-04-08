@@ -34,6 +34,9 @@ type AppConfig struct {
 	// BanBeforeRemoveDuration is a duration of a graceful ban before finally removing the user from YTsaurus.
 	// If it is not specified, user will be removed straight after user was found to be missing from source (Azure or Ldap).
 	BanBeforeRemoveDuration time.Duration `yaml:"ban_before_remove_duration"`
+
+	// SaveGroupsNesting = false means all group trees will be flatten.
+	SaveGroupsNesting bool `yaml:"save_groups_nesting"`
 }
 
 type ReplacementPair struct {
