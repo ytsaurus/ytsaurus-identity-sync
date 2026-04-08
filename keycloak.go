@@ -110,6 +110,10 @@ func (k *Keycloak) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 			memberIDs.Add(gocloak.PString(m.ID))
 		}
 
+		for _, subGroup := range *g.SubGroups {
+			memberIDs.Add(gocloak.PString(subGroup.ID))
+		}
+
 		sourceGroups = append(sourceGroups, SourceGroupWithMembers{
 			SourceGroup: KeycloakGroup{
 				Name: groupName,

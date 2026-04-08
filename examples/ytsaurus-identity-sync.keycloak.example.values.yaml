@@ -35,7 +35,7 @@ syncConfig: |-
     apply_group_changes: true
     apply_member_changes: true
     timeout: 3s
-    source_attribute_name: "ldap"
+    source_attribute_name: "keycloak"
 
   logging:
     is_production: true

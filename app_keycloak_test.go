@@ -36,10 +36,13 @@ func createUpdatedKeycloakUser(name string) KeycloakUser {
 	}
 }
 
+func fullGroupName(name string) string {
+	return fmt.Sprintf("acme.%s|all", name)
+}
+
 func createKeycloakGroup(name string) KeycloakGroup {
-	name = "acme." + name
 	return KeycloakGroup{
-		Name: fmt.Sprintf("%v|all", name),
+		Name: fullGroupName(name),
 	}
 }
 
@@ -51,7 +54,7 @@ func createYtsaurusUserForKeycloak(name string) YtsaurusUser {
 	}
 	return YtsaurusUser{Username: ytUsername, SourceRaw: map[string]any{
 		"username":   originalUsername,
-		"id":         originalUsername,
+		"id":         "user_id_stub_" + originalUsername,
 		"first_name": name,
 		"last_name":  name + "-surname",
 		"email":      name + "@acme.com",
@@ -65,15 +68,14 @@ func createUpdatedYtsaurusUserForKeycloak(name string) YtsaurusUser {
 }
 
 func createYtsaurusGroupForKeycloak(name string) YtsaurusGroup {
-	name = "acme." + name
-	originalName := fmt.Sprintf("%v|all", name)
+	originalName := fullGroupName(name)
 	ytName := originalName
 	for _, replacement := range defaultGroupnameReplacements {
 		ytName = strings.Replace(ytName, replacement.From, replacement.To, -1)
 	}
-	return YtsaurusGroup{Name: name, SourceRaw: map[string]any{
+	return YtsaurusGroup{Name: ytName, SourceRaw: map[string]any{
 		"name": originalName,
-		"id":   originalName,
+		"id":   "group_id_stub_" + originalName,
 	}}
 }
 
@@ -223,11 +225,11 @@ var (
 			sourceGroupsSetUp: []SourceGroupWithMembers{
 				{
 					SourceGroup: createKeycloakGroup("devs"),
-					Members:     NewStringSetFromItems(aliceName),
+					Members:     NewStringSetFromItems(fullUsername(aliceName)),
 				},
 				{
 					SourceGroup: createKeycloakGroup("hq"),
-					Members:     NewStringSetFromItems(carolName),
+					Members:     NewStringSetFromItems(fullUsername(carolName)),
 				},
 			},
 			ytGroupsExpected: []YtsaurusGroupWithMembers{
@@ -271,8 +273,8 @@ var (
 				{
 					SourceGroup: createKeycloakGroup("devs"),
 					Members: NewStringSetFromItems(
-						aliceName,
-						carolName,
+						fullUsername(aliceName),
+						fullUsername(carolName),
 					),
 				},
 			},
@@ -282,6 +284,180 @@ var (
 					Members: NewStringSetFromItems(
 						aliceName,
 						carolName,
+					),
+				},
+			},
+		},
+		{
+			name: "memberships-add-remove-subgroups",
+			sourceUsersSetUp: []SourceUser{
+				createKeycloakUser(aliceName),
+				createKeycloakUser(bobName),
+				createKeycloakUser(carolName),
+			},
+			ytUsersSetUp: []YtsaurusUser{
+				createYtsaurusUserForKeycloak(aliceName),
+				createYtsaurusUserForKeycloak(bobName),
+				createYtsaurusUserForKeycloak(carolName),
+			},
+			ytUsersExpected: []YtsaurusUser{
+				createYtsaurusUserForKeycloak(aliceName),
+				createYtsaurusUserForKeycloak(bobName),
+				createYtsaurusUserForKeycloak(carolName),
+			},
+			ytGroupsSetUp: []YtsaurusGroupWithMembers{
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1"),
+					Members: NewStringSetFromItems(
+						aliceName,
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup2"),
+					Members: NewStringSetFromItems(
+						bobName,
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs"),
+					Members: NewStringSetFromItems(
+						aliceName,
+						bobName,
+						"acme.devs-subgroup1",
+						"acme.devs-subgroup2",
+					),
+				},
+			},
+			sourceGroupsSetUp: []SourceGroupWithMembers{
+				{
+					SourceGroup: createKeycloakGroup("devs-subgroup1"),
+					Members: NewStringSetFromItems(
+						fullUsername(aliceName),
+					),
+				},
+				{
+					SourceGroup: createKeycloakGroup("devs-subgroup3"),
+					Members: NewStringSetFromItems(
+						fullUsername(carolName),
+					),
+				},
+				{
+					SourceGroup: createKeycloakGroup("devs"),
+					Members: NewStringSetFromItems(
+						fullUsername(aliceName),
+						fullUsername(carolName),
+						fullGroupName("devs-subgroup1"),
+						fullGroupName("devs-subgroup3"),
+					),
+				},
+			},
+			ytGroupsExpected: []YtsaurusGroupWithMembers{
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1"),
+					Members: NewStringSetFromItems(
+						aliceName,
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup3"),
+					Members: NewStringSetFromItems(
+						carolName,
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs"),
+					Members: NewStringSetFromItems(
+						aliceName,
+						carolName,
+						"acme.devs-subgroup1",
+						"acme.devs-subgroup3",
+					),
+				},
+			},
+		},
+		{
+			name: "memberships-move-subgroups",
+			ytGroupsSetUp: []YtsaurusGroupWithMembers{
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1-subgroup1"),
+					Members:       NewStringSetFromItems(),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1"),
+					Members: NewStringSetFromItems(
+						"acme.devs-subgroup1-subgroup1",
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup2"),
+					Members:       NewStringSetFromItems(),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs"),
+					Members: NewStringSetFromItems(
+						"acme.devs-subgroup1",
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("hq"),
+					Members: NewStringSetFromItems(
+						"acme.devs-subgroup2",
+					),
+				},
+			},
+			sourceGroupsSetUp: []SourceGroupWithMembers{
+				{
+					SourceGroup: createKeycloakGroup("devs-subgroup1-subgroup1"),
+					Members:     NewStringSetFromItems(),
+				},
+				{
+					SourceGroup: createKeycloakGroup("devs-subgroup1"),
+					Members:     NewStringSetFromItems(),
+				},
+				{
+					SourceGroup: createKeycloakGroup("devs-subgroup2"),
+					Members: NewStringSetFromItems(
+						fullGroupName("devs-subgroup1-subgroup1"),
+					),
+				},
+				{
+					SourceGroup: createKeycloakGroup("devs"),
+					Members: NewStringSetFromItems(
+						fullGroupName("devs-subgroup2"),
+					),
+				},
+				{
+					SourceGroup: createKeycloakGroup("hq"),
+					Members: NewStringSetFromItems(
+						fullGroupName("devs-subgroup1"),
+					),
+				},
+			},
+			ytGroupsExpected: []YtsaurusGroupWithMembers{
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1-subgroup1"),
+					Members:       NewStringSetFromItems(),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1"),
+					Members:       NewStringSetFromItems(),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup2"),
+					Members: NewStringSetFromItems(
+						"acme.devs-subgroup1-subgroup1",
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs"),
+					Members: NewStringSetFromItems(
+						"acme.devs-subgroup2",
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("hq"),
+					Members: NewStringSetFromItems(
+						"acme.devs-subgroup1",
 					),
 				},
 			},
@@ -433,6 +609,8 @@ func setupKeycloakObjects(t *testing.T, cfg *KeycloakConfig, clientSecret string
 		usersMap[user.GetName()] = user.(KeycloakUser)
 	}
 
+	groupIDsMap := make(map[string]string)
+
 	for i, group := range groups {
 		t.Logf("creating group: %v", group)
 		kg := group.SourceGroup.(KeycloakGroup)
@@ -443,15 +621,26 @@ func setupKeycloakObjects(t *testing.T, cfg *KeycloakConfig, clientSecret string
 		kg.ID = groupID
 		group.SourceGroup = kg
 
+		groupIDsMap[kg.Name] = groupID
+
 		groupMembers := NewStringSet()
 		for member := range group.Members.Iter() {
-			if user, ok := usersMap[fullUsername(member)]; ok {
-				t.Logf("adding group %s member %s", group.SourceGroup.GetName(), user.GetName())
+			if user, ok := usersMap[member]; ok {
+				t.Logf("adding member %s to group %s", member, group.SourceGroup.GetName())
 				err = client.AddUserToGroup(ctx, token.AccessToken, cfg.Realm, user.ID, groupID)
 				require.NoError(t, err)
 				groupMembers.Add(user.ID)
+			} else if subGroupID, ok := groupIDsMap[member]; ok {
+				t.Logf("adding subgroup %s to group %s", member, group.SourceGroup.GetName())
+				subGroupID, err := client.CreateChildGroup(ctx, token.AccessToken, cfg.Realm, groupID, gocloak.Group{
+					ID:   gocloak.StringP(subGroupID),
+					Name: gocloak.StringP(member),
+				})
+				require.NoError(t, err)
+
+				groupMembers.Add(subGroupID)
 			} else {
-				groupMembers.Add(member)
+				require.FailNow(t, fmt.Sprintf("Unknown member name: %s", member))
 			}
 		}
 		group.Members = groupMembers
