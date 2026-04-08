@@ -508,6 +508,13 @@ var (
 				},
 			},
 		},
+		{
+			name:              "create-with-paging",
+			sourceUsersSetUp:  generateSourceUsers(210),
+			sourceGroupsSetUp: generateEmptySourceGroups(210),
+			ytUsersExpected:   generateYTUsers(210),
+			ytGroupsExpected:  generateEmptyYTGroups(210),
+		},
 	}
 )
 
@@ -692,4 +699,42 @@ func setupKeycloakObjects(t *testing.T, cfg *KeycloakConfig, clientSecret string
 		group.Members = groupMembers
 		groups[i] = group
 	}
+}
+
+func generateSourceUsers(count int) []SourceUser {
+	users := make([]SourceUser, count)
+	for i := 0; i < count; i++ {
+		users[i] = createKeycloakUser(fmt.Sprintf("user-%d", i))
+	}
+	return users
+}
+
+func generateYTUsers(count int) []YtsaurusUser {
+	users := make([]YtsaurusUser, count)
+	for i := 0; i < count; i++ {
+		users[i] = createYtsaurusUserForKeycloak(fmt.Sprintf("user-%d", i))
+	}
+	return users
+}
+
+func generateEmptySourceGroups(count int) []SourceGroupWithMembers {
+	groups := make([]SourceGroupWithMembers, count)
+	for i := 0; i < count; i++ {
+		groups[i] = SourceGroupWithMembers{
+			SourceGroup: createKeycloakGroup(fmt.Sprintf("group-%d", i)),
+			Members:     NewStringSetFromItems(),
+		}
+	}
+	return groups
+}
+
+func generateEmptyYTGroups(count int) []YtsaurusGroupWithMembers {
+	groups := make([]YtsaurusGroupWithMembers, count)
+	for i := 0; i < count; i++ {
+		groups[i] = YtsaurusGroupWithMembers{
+			YtsaurusGroup: createYtsaurusGroupForKeycloak(fmt.Sprintf("group-%d", i)),
+			Members:       NewStringSetFromItems(),
+		}
+	}
+	return groups
 }
