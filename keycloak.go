@@ -102,6 +102,8 @@ func (k *Keycloak) GetUsersByAttributes(token string) ([]SourceUser, error) {
 			Q:                   &k.config.UsersAttributeFilter,
 			First:               gocloak.IntP(first),
 			Max:                 gocloak.IntP(defaultKeycloakPageSize),
+			EmailVerified:       gocloak.BoolP(true),
+			Enabled:             gocloak.BoolP(true),
 		})
 		if err != nil {
 			k.logger.Errorw("failed to get keycloak users", zap.Error(err), "realm", k.config.Realm)
@@ -230,7 +232,11 @@ func (k *Keycloak) getGroupMembers(token string, group *gocloak.Group) ([]*goclo
 		}
 		k.logger.Debugf("Found %d group %s members", len(membersChunk), gocloak.PString(group.Name))
 
-		members = append(members, membersChunk...)
+		for _, m := range membersChunk {
+			if gocloak.PBool(m.EmailVerified) && gocloak.PBool(m.Enabled) {
+				members = append(members, m)
+			}
+		}
 
 		if len(membersChunk) < defaultKeycloakPageSize {
 			break

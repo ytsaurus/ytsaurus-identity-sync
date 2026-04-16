@@ -652,11 +652,12 @@ func setupKeycloakObjects(t *testing.T, cfg *KeycloakConfig, clientSecret string
 
 		t.Logf("creating user: %v", user)
 		id, err := client.CreateUser(ctx, token.AccessToken, cfg.Realm, gocloak.User{
-			Username:  gocloak.StringP(ku.Username),
-			FirstName: gocloak.StringP(ku.FirstName),
-			LastName:  gocloak.StringP(ku.LastName),
-			Email:     gocloak.StringP(ku.Email),
-			Enabled:   gocloak.BoolP(true),
+			Username:      gocloak.StringP(ku.Username),
+			FirstName:     gocloak.StringP(ku.FirstName),
+			LastName:      gocloak.StringP(ku.LastName),
+			Email:         gocloak.StringP(ku.Email),
+			Enabled:       gocloak.BoolP(true),
+			EmailVerified: gocloak.BoolP(true),
 		})
 		require.NoError(t, err)
 		ku.ID = id
