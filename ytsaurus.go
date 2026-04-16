@@ -295,46 +295,46 @@ func (y *Ytsaurus) RemoveGroup(groupname string) error {
 	)
 }
 
-func (y *Ytsaurus) AddMember(username, groupname string) error {
+func (y *Ytsaurus) AddMember(memberName, groupname string) error {
 	if y.dryRunMembers {
-		y.logger.Debugw("[DRY-RUN] Going to add member", "username", username, "groupname", groupname)
+		y.logger.Debugw("[DRY-RUN] Going to add member", "membername", memberName, "groupname", groupname)
 		return nil
 	}
-	if err := y.ensureUserManaged(username); err != nil {
+	if err := y.ensureUserOrGroupManaged(memberName); err != nil {
 		return err
 	}
 	if err := y.ensureGroupManaged(groupname); err != nil {
 		return err
 	}
-	y.logger.Debugw("Going to add member", "username", username, "groupname", groupname)
+	y.logger.Debugw("Going to add member", "membername", memberName, "groupname", groupname)
 
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	y.maybePrintExtraLogs(groupname, "add_member", "username", username, "groupname", groupname)
-	y.maybePrintExtraLogs(username, "add_member", "username", username, "groupname", groupname)
-	return doAddMemberYtsaurusGroup(ctx, y.client, username, groupname)
+	y.maybePrintExtraLogs(groupname, "add_member", "membername", memberName, "groupname", groupname)
+	y.maybePrintExtraLogs(memberName, "add_member", "membername", memberName, "groupname", groupname)
+	return doAddMemberYtsaurusGroup(ctx, y.client, memberName, groupname)
 }
 
-func (y *Ytsaurus) RemoveMember(username, groupname string) error {
+func (y *Ytsaurus) RemoveMember(memberName, groupname string) error {
 	if y.dryRunMembers {
-		y.logger.Debugw("[DRY-RUN] Going to remove member", "username", username, "groupname", groupname)
+		y.logger.Debugw("[DRY-RUN] Going to remove member", "membername", memberName, "groupname", groupname)
 		return nil
 	}
-	if err := y.ensureUserManaged(username); err != nil {
+	if err := y.ensureUserOrGroupManaged(memberName); err != nil {
 		return err
 	}
 	if err := y.ensureGroupManaged(groupname); err != nil {
 		return err
 	}
-	y.logger.Debugw("Going to remove member", "username", username, "groupname", groupname)
+	y.logger.Debugw("Going to remove member", "membername", memberName, "groupname", groupname)
 
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
 
-	y.maybePrintExtraLogs(groupname, "remove_username", "username", username, "groupname", groupname)
-	y.maybePrintExtraLogs(username, "remove_username", "username", username, "groupname", groupname)
-	return doRemoveMemberYtsaurusGroup(ctx, y.client, username, groupname)
+	y.maybePrintExtraLogs(groupname, "remove_username", "membername", memberName, "groupname", groupname)
+	y.maybePrintExtraLogs(memberName, "remove_username", "membername", memberName, "groupname", groupname)
+	return doRemoveMemberYtsaurusGroup(ctx, y.client, memberName, groupname)
 }
 
 func (y *Ytsaurus) isUserManaged(username string) (bool, error) {
@@ -359,6 +359,18 @@ func (y *Ytsaurus) ensureUserManaged(username string) error {
 	return nil
 }
 
+func (y *Ytsaurus) ensureUserOrGroupManaged(name string) error {
+	err := y.ensureUserManaged(name)
+	if err == nil {
+		return nil
+	}
+	err = y.ensureGroupManaged(name)
+	if err == nil {
+		return nil
+	}
+	return err
+}
+
 func (y *Ytsaurus) isGroupManaged(name string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
 	defer cancel()
@@ -376,7 +388,7 @@ func (y *Ytsaurus) ensureGroupManaged(groupname string) error {
 		return errors.Wrapf(err, "Failed to check if group %s is managed", groupname)
 	}
 	if !isManaged {
-		return errors.New("Prevented attempt to change manual managed group" + groupname)
+		return errors.New("Prevented attempt to change manual managed group " + groupname)
 	}
 	return nil
 }

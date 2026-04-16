@@ -65,6 +65,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "ytsaurus-identity-sync.fullname" . | quote }}
                   key: AZURE_CLIENT_SECRET
+            {{- else if eq .Values.syncSource "keycloak" }}
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ytsaurus-identity-sync.fullname" . | quote }}
+                  key: KEYCLOAK_CLIENT_SECRET
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
