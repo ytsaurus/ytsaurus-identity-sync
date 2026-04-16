@@ -93,7 +93,6 @@ func NewAppCustomized(cfg *Config, logger appLoggerType, source Source, clock cl
 		groupnameReplaces: cfg.App.GroupnameReplacements,
 		removeLimit:       cfg.App.RemoveLimit,
 		banDuration:       cfg.App.BanBeforeRemoveDuration,
-		saveGroupsNesting: cfg.App.SaveGroupsNesting,
 
 		ytsaurus: yt,
 		source:   source,

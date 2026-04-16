@@ -34,6 +34,10 @@ type testCase struct {
 	appConfig *AppConfig
 	testTime  time.Time
 
+	ldapConfigModifier     func(config *LdapConfig)
+	azureConfigModifier    func(config *AzureConfig)
+	keycloakConfigModifier func(config *KeycloakConfig)
+
 	sourceUsersSetUp []SourceUser
 	ytUsersSetUp     []YtsaurusUser
 	ytUsersExpected  []YtsaurusUser

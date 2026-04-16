@@ -289,48 +289,7 @@ var (
 			},
 		},
 		{
-			name:          "memberships-flat-subgroups",
-			ytGroupsSetUp: []YtsaurusGroupWithMembers{},
-			sourceGroupsSetUp: []SourceGroupWithMembers{
-				{
-					SourceGroup: createKeycloakGroup("devs-subgroup1-subgroup1"),
-					Members:     NewStringSetFromItems(),
-				},
-				{
-					SourceGroup: createKeycloakGroup("devs-subgroup1"),
-					Members: NewStringSetFromItems(
-						fullGroupName("devs-subgroup1-subgroup1"),
-					),
-				},
-				{
-					SourceGroup: createKeycloakGroup("devs"),
-					Members: NewStringSetFromItems(
-						fullGroupName("devs-subgroup1"),
-					),
-				},
-			},
-			ytGroupsExpected: []YtsaurusGroupWithMembers{
-				{
-					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1-subgroup1"),
-					Members:       NewStringSetFromItems(),
-				},
-				{
-					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1"),
-					Members:       NewStringSetFromItems(),
-				},
-				{
-					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs"),
-					Members:       NewStringSetFromItems(),
-				},
-			},
-		},
-		{
 			name: "memberships-add-remove-subgroups",
-			appConfig: &AppConfig{
-				UsernameReplacements:  defaultUsernameReplacements,
-				GroupnameReplacements: defaultGroupnameReplacements,
-				SaveGroupsNesting:     true,
-			},
 			sourceUsersSetUp: []SourceUser{
 				createKeycloakUser(aliceName),
 				createKeycloakUser(bobName),
@@ -387,6 +346,8 @@ var (
 					Members: NewStringSetFromItems(
 						fullUsername(aliceName),
 						fullUsername(carolName),
+					),
+					SubGroups: NewStringSetFromItems(
 						fullGroupName("devs-subgroup1"),
 						fullGroupName("devs-subgroup3"),
 					),
@@ -418,11 +379,6 @@ var (
 		},
 		{
 			name: "memberships-move-subgroups",
-			appConfig: &AppConfig{
-				UsernameReplacements:  defaultUsernameReplacements,
-				GroupnameReplacements: defaultGroupnameReplacements,
-				SaveGroupsNesting:     true,
-			},
 			ytGroupsSetUp: []YtsaurusGroupWithMembers{
 				{
 					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs-subgroup1-subgroup1"),
@@ -462,19 +418,19 @@ var (
 				},
 				{
 					SourceGroup: createKeycloakGroup("devs-subgroup2"),
-					Members: NewStringSetFromItems(
+					SubGroups: NewStringSetFromItems(
 						fullGroupName("devs-subgroup1-subgroup1"),
 					),
 				},
 				{
 					SourceGroup: createKeycloakGroup("devs"),
-					Members: NewStringSetFromItems(
+					SubGroups: NewStringSetFromItems(
 						fullGroupName("devs-subgroup2"),
 					),
 				},
 				{
 					SourceGroup: createKeycloakGroup("hq"),
-					Members: NewStringSetFromItems(
+					SubGroups: NewStringSetFromItems(
 						fullGroupName("devs-subgroup1"),
 					),
 				},
@@ -509,6 +465,53 @@ var (
 			},
 		},
 		{
+			name: "create-users-groups-filtered",
+			keycloakConfigModifier: func(cfg *KeycloakConfig) {
+				cfg.UsersAttributeFilter = "username:test_ email:@acme.com"
+				cfg.UsersGroupFilter = "devs"
+				cfg.GroupsFilter = "de"
+			},
+			sourceUsersSetUp: []SourceUser{
+				createKeycloakUser("test_alice"),
+				createKeycloakUser("test_bob"),
+				createKeycloakUser("carol"),
+			},
+			ytUsersExpected: []YtsaurusUser{
+				createYtsaurusUserForKeycloak("test_alice"),
+			},
+			sourceGroupsSetUp: []SourceGroupWithMembers{
+				{
+					SourceGroup: createKeycloakGroup("devs"),
+					Members: NewStringSetFromItems(
+						fullUsername("test_alice"),
+						fullUsername("carol"),
+					),
+				},
+				{
+					SourceGroup: createKeycloakGroup("defs"),
+					Members: NewStringSetFromItems(
+						fullUsername("test_bob"),
+					),
+				},
+				{
+					SourceGroup: createKeycloakGroup("hq"),
+					Members:     NewStringSetFromItems(),
+				},
+			},
+			ytGroupsExpected: []YtsaurusGroupWithMembers{
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs"),
+					Members: NewStringSetFromItems(
+						"test_alice",
+					),
+				},
+				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("defs"),
+					Members:       NewStringSetFromItems(),
+				},
+			},
+		},
+		{
 			name:              "create-with-paging",
 			sourceUsersSetUp:  generateSourceUsers(210),
 			sourceGroupsSetUp: generateEmptySourceGroups(210),
@@ -539,6 +542,9 @@ func (suite *AppTestSuite) TestKeycloakSyncOnce() {
 
 					kcConfig, err := keycloakLocal.GetConfig()
 					require.NoError(t, err)
+					if tc.keycloakConfigModifier != nil {
+						tc.keycloakConfigModifier(kcConfig)
+					}
 
 					clientSecret := "test-client-secret"
 					require.NoError(t, os.Setenv(kcConfig.ClientSecretEnvVar, clientSecret))
@@ -677,23 +683,34 @@ func setupKeycloakObjects(t *testing.T, cfg *KeycloakConfig, clientSecret string
 		groupIDsMap[kg.Name] = groupID
 
 		groupMembers := NewStringSet()
+		if group.Members == nil {
+			group.Members = NewStringSet()
+		}
 		for member := range group.Members.Iter() {
 			if user, ok := usersMap[member]; ok {
 				t.Logf("adding member %s to group %s", member, group.SourceGroup.GetName())
 				err = client.AddUserToGroup(ctx, token.AccessToken, cfg.Realm, user.ID, groupID)
 				require.NoError(t, err)
 				groupMembers.Add(user.ID)
-			} else if subGroupID, ok := groupIDsMap[member]; ok {
-				t.Logf("adding subgroup %s to group %s", member, group.SourceGroup.GetName())
+			} else {
+				require.FailNow(t, fmt.Sprintf("Unknown member name: %s", member))
+			}
+		}
+		if group.SubGroups == nil {
+			group.SubGroups = NewStringSet()
+		}
+		for subGroup := range group.SubGroups.Iter() {
+			if subGroupID, ok := groupIDsMap[subGroup]; ok {
+				t.Logf("adding subgroup %s to group %s", subGroup, group.SourceGroup.GetName())
 				subGroupID, err := client.CreateChildGroup(ctx, token.AccessToken, cfg.Realm, groupID, gocloak.Group{
 					ID:   gocloak.StringP(subGroupID),
-					Name: gocloak.StringP(member),
+					Name: gocloak.StringP(subGroup),
 				})
 				require.NoError(t, err)
 
 				groupMembers.Add(subGroupID)
 			} else {
-				require.FailNow(t, fmt.Sprintf("Unknown member name: %s", member))
+				require.FailNow(t, fmt.Sprintf("Unknown subgroup name: %s", subGroup))
 			}
 		}
 		group.Members = groupMembers

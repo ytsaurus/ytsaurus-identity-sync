@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Nerzal/gocloak/v13"
 	"go.uber.org/zap"
@@ -18,6 +19,14 @@ type Keycloak struct {
 	logger appLoggerType
 }
 
+type AttrbiuteFilter struct {
+	Username   string
+	Email      string
+	FirstName  string
+	LastName   string
+	Attributes map[string]string
+}
+
 func NewKeycloak(cfg *KeycloakConfig, logger appLoggerType) (*Keycloak, error) {
 	client := gocloak.NewClient(cfg.URL)
 
@@ -26,20 +35,6 @@ func NewKeycloak(cfg *KeycloakConfig, logger appLoggerType) (*Keycloak, error) {
 		config: cfg,
 		logger: logger,
 	}, nil
-}
-
-func (k *Keycloak) getAccessToken(ctx context.Context) (string, error) {
-	token, err := k.client.LoginClient(
-		ctx,
-		k.config.ClientID,
-		env.GetString(k.config.ClientSecretEnvVar, ""),
-		k.config.Realm,
-	)
-	if err != nil {
-		k.logger.Errorw("failed to get keycloak client token", zap.Error(err), "client_id", k.config.ClientID)
-		return "", err
-	}
-	return token.AccessToken, nil
 }
 
 func (k *Keycloak) CreateUserFromRaw(raw map[string]any) (SourceUser, error) {
@@ -57,13 +52,54 @@ func (k *Keycloak) GetUsers() ([]SourceUser, error) {
 		return nil, err
 	}
 
+	if k.config.UsersGroupFilter != "" {
+		return k.GetUsersByGroups(token)
+	}
+
+	return k.GetUsersByAttributes(token)
+}
+
+func (k *Keycloak) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
+	ctx := context.Background()
+	token, err := k.getAccessToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	keycloakGroups, err := k.getGroupsByFilter(token, k.config.GroupsFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	return k.convertToSourceGroups(token, keycloakGroups)
+}
+
+func (k *Keycloak) getAccessToken(ctx context.Context) (string, error) {
+	k.logger.Debugf("Getting access token for client %s", k.config.ClientID)
+	token, err := k.client.LoginClient(
+		ctx,
+		k.config.ClientID,
+		env.GetString(k.config.ClientSecretEnvVar, ""),
+		k.config.Realm,
+	)
+	if err != nil {
+		k.logger.Errorw("failed to get keycloak client token", zap.Error(err), "client_id", k.config.ClientID)
+		return "", err
+	}
+	return token.AccessToken, nil
+}
+
+func (k *Keycloak) GetUsersByAttributes(token string) ([]SourceUser, error) {
+	ctx := context.Background()
+
 	var sourceUsers []SourceUser
 	first := 0
 
 	for {
+		k.logger.Debugf("Processing users from %d ...", first)
 		usersChunk, err := k.client.GetUsers(ctx, token, k.config.Realm, gocloak.GetUsersParams{
 			BriefRepresentation: gocloak.BoolP(true),
-			Q:                   &k.config.UsersFilter,
+			Q:                   &k.config.UsersAttributeFilter,
 			First:               gocloak.IntP(first),
 			Max:                 gocloak.IntP(defaultKeycloakPageSize),
 		})
@@ -71,6 +107,8 @@ func (k *Keycloak) GetUsers() ([]SourceUser, error) {
 			k.logger.Errorw("failed to get keycloak users", zap.Error(err), "realm", k.config.Realm)
 			return nil, err
 		}
+
+		k.logger.Debugf("Found %d users", len(usersChunk))
 
 		sourceUsers = append(sourceUsers, k.convertToSourceUsers(usersChunk)...)
 
@@ -84,19 +122,35 @@ func (k *Keycloak) GetUsers() ([]SourceUser, error) {
 	return sourceUsers, nil
 }
 
-func (k *Keycloak) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
-	ctx := context.Background()
-	token, err := k.getAccessToken(ctx)
+func (k *Keycloak) GetUsersByGroups(token string) ([]SourceUser, error) {
+	groups, err := k.getGroupsByFilter(token, k.config.UsersGroupFilter)
 	if err != nil {
 		return nil, err
 	}
 
-	var sourceGroups []SourceGroupWithMembers
+	var sourceUsers []SourceUser
+	for _, g := range groups {
+		members, err := k.getGroupMembers(token, g)
+		if err != nil {
+			return nil, err
+		}
+		members = k.filterUsersByAttributes(members, k.config.UsersAttributeFilter)
+		sourceUsers = append(sourceUsers, k.convertToSourceUsers(members)...)
+	}
+
+	return sourceUsers, nil
+}
+
+func (k *Keycloak) getGroupsByFilter(token string, filter string) ([]*gocloak.Group, error) {
+	ctx := context.Background()
+
+	var groups []*gocloak.Group
 	first := 0
 
 	for {
+		k.logger.Debugf("Processing groups from %d ...", first)
 		groupsChunk, err := k.client.GetGroups(ctx, token, k.config.Realm, gocloak.GetGroupsParams{
-			Search: &k.config.GroupsFilter,
+			Search: gocloak.StringP(""),
 			First:  gocloak.IntP(first),
 			Max:    gocloak.IntP(defaultKeycloakPageSize),
 		})
@@ -104,12 +158,11 @@ func (k *Keycloak) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 			k.logger.Errorw("failed to get keycloak groups", zap.Error(err), "realm", k.config.Realm)
 			return nil, err
 		}
+		k.logger.Debugf("Found %d groups", len(groupsChunk))
 
-		sourceGroupsChunk, err := k.convertToSourceGroups(token, groupsChunk)
-		if err != nil {
-			return nil, err
-		}
-		sourceGroups = append(sourceGroups, sourceGroupsChunk...)
+		flattenGroupsChunk := k.flattenGroups(groupsChunk)
+		flattenGroupsChunk = k.filterGroups(flattenGroupsChunk, filter)
+		groups = append(groups, flattenGroupsChunk...)
 
 		if len(groupsChunk) < defaultKeycloakPageSize {
 			break
@@ -117,44 +170,28 @@ func (k *Keycloak) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 		first += defaultKeycloakPageSize
 	}
 
-	return sourceGroups, nil
+	return groups, nil
 }
 
-func (k *Keycloak) convertToSourceUsers(users []*gocloak.User) []SourceUser {
-	var sourceUsers []SourceUser
-	for _, u := range users {
-		sourceUsers = append(sourceUsers, KeycloakUser{
-			Username:  gocloak.PString(u.Username),
-			ID:        gocloak.PString(u.ID),
-			FirstName: gocloak.PString(u.FirstName),
-			LastName:  gocloak.PString(u.LastName),
-			Email:     gocloak.PString(u.Email),
-		})
-	}
-	return sourceUsers
-}
-
-func (k *Keycloak) convertToSourceGroups(token string, groups []*gocloak.Group) ([]SourceGroupWithMembers, error) {
-	var sourceGroups []SourceGroupWithMembers
-	flattenGroupsChunk := k.flattenGroups(groups)
-
-	for _, g := range flattenGroupsChunk {
-		memberIDs, err := k.getGroupMembers(token, g)
-		if err != nil {
-			k.logger.Errorw("failed to get group members", zap.Error(err), "group_name", gocloak.PString(g.Name))
-			return nil, err
+func (k *Keycloak) filterGroups(groups []*gocloak.Group, filter string) []*gocloak.Group {
+	var filteredGroups []*gocloak.Group
+	for _, g := range groups {
+		if strings.Contains(gocloak.PString(g.Name), filter) {
+			filteredGroups = append(filteredGroups, g)
 		}
-
-		sourceGroups = append(sourceGroups, SourceGroupWithMembers{
-			SourceGroup: KeycloakGroup{
-				Name: gocloak.PString(g.Name),
-				ID:   gocloak.PString(g.ID),
-			},
-			Members: memberIDs,
-		})
 	}
+	return filteredGroups
+}
 
-	return sourceGroups, nil
+func (k *Keycloak) filterUsersByAttributes(users []*gocloak.User, filter string) []*gocloak.User {
+	attributesFilter := parseAttributesFilter(filter)
+	var filteredUsers []*gocloak.User
+	for _, u := range users {
+		if isUserMatchFilter(u, attributesFilter) {
+			filteredUsers = append(filteredUsers, u)
+		}
+	}
+	return filteredUsers
 }
 
 func (k *Keycloak) flattenGroups(groups []*gocloak.Group) []*gocloak.Group {
@@ -176,26 +213,24 @@ func (k *Keycloak) flattenGroups(groups []*gocloak.Group) []*gocloak.Group {
 	return flatList
 }
 
-func (k *Keycloak) getGroupMembers(token string, group *gocloak.Group) (StringSet, error) {
+func (k *Keycloak) getGroupMembers(token string, group *gocloak.Group) ([]*gocloak.User, error) {
 	ctx := context.Background()
 
-	memberIDs := NewStringSet()
+	var members []*gocloak.User
 	first := 0
 
 	for {
+		k.logger.Debugf("Processing group %s members from %d ...", gocloak.PString(group.Name), first)
 		membersChunk, err := k.client.GetGroupMembers(ctx, token, k.config.Realm, *group.ID, gocloak.GetGroupsParams{
-			BriefRepresentation: gocloak.BoolP(true),
-			Q:                   &k.config.UsersFilter,
-			First:               gocloak.IntP(first),
-			Max:                 gocloak.IntP(defaultKeycloakPageSize),
+			First: gocloak.IntP(first),
+			Max:   gocloak.IntP(defaultKeycloakPageSize),
 		})
 		if err != nil {
-			return NewStringSet(), err
+			return nil, err
 		}
+		k.logger.Debugf("Found %d group %s members", len(membersChunk), gocloak.PString(group.Name))
 
-		for _, m := range membersChunk {
-			memberIDs.Add(gocloak.PString(m.ID))
-		}
+		members = append(members, membersChunk...)
 
 		if len(membersChunk) < defaultKeycloakPageSize {
 			break
@@ -203,11 +238,121 @@ func (k *Keycloak) getGroupMembers(token string, group *gocloak.Group) (StringSe
 		first += defaultKeycloakPageSize
 	}
 
-	if group.SubGroups != nil {
-		for _, subGroup := range *group.SubGroups {
-			memberIDs.Add(gocloak.PString(subGroup.ID))
+	return members, nil
+}
+
+func (k *Keycloak) convertToSourceUsers(users []*gocloak.User) []SourceUser {
+	var sourceUsers []SourceUser
+	for _, u := range users {
+		sourceUsers = append(sourceUsers, KeycloakUser{
+			Username:  gocloak.PString(u.Username),
+			ID:        gocloak.PString(u.ID),
+			FirstName: gocloak.PString(u.FirstName),
+			LastName:  gocloak.PString(u.LastName),
+			Email:     gocloak.PString(u.Email),
+		})
+	}
+	return sourceUsers
+}
+
+func (k *Keycloak) convertToSourceGroups(token string, groups []*gocloak.Group) ([]SourceGroupWithMembers, error) {
+	var sourceGroups []SourceGroupWithMembers
+
+	for _, g := range groups {
+		memberIDs, err := k.getGroupMemberIDs(token, g)
+		if err != nil {
+			k.logger.Errorw("failed to get group members", zap.Error(err), "group_name", gocloak.PString(g.Name))
+			return nil, err
 		}
+
+		subGroupIDs := NewStringSet()
+		if g.SubGroups != nil {
+			for _, subGroup := range *g.SubGroups {
+				subGroupIDs.Add(gocloak.PString(subGroup.ID))
+			}
+		}
+
+		sourceGroups = append(sourceGroups, SourceGroupWithMembers{
+			SourceGroup: KeycloakGroup{
+				Name: gocloak.PString(g.Name),
+				ID:   gocloak.PString(g.ID),
+			},
+			Members:   memberIDs,
+			SubGroups: subGroupIDs,
+		})
+	}
+
+	return sourceGroups, nil
+}
+
+func (k *Keycloak) getGroupMemberIDs(token string, group *gocloak.Group) (StringSet, error) {
+	memberIDs := NewStringSet()
+
+	userMembers, err := k.getGroupMembers(token, group)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, u := range userMembers {
+		memberIDs.Add(gocloak.PString(u.ID))
 	}
 
 	return memberIDs, nil
+}
+
+func parseAttributesFilter(filter string) AttrbiuteFilter {
+	attrbiuteFilter := AttrbiuteFilter{
+		Attributes: make(map[string]string),
+	}
+	if filter == "" {
+		return attrbiuteFilter
+	}
+
+	for _, f := range strings.Split(filter, " ") {
+		if !strings.Contains(f, ":") {
+			continue
+		}
+		kv := strings.Split(f, ":")
+		switch kv[0] {
+		case "username":
+			attrbiuteFilter.Username = kv[1]
+		case "email":
+			attrbiuteFilter.Email = kv[1]
+		case "firstName":
+			attrbiuteFilter.FirstName = kv[1]
+		case "lastName":
+			attrbiuteFilter.LastName = kv[1]
+		default:
+			attrbiuteFilter.Attributes[kv[0]] = kv[1]
+		}
+	}
+
+	return attrbiuteFilter
+}
+
+func isUserMatchFilter(user *gocloak.User, filter AttrbiuteFilter) bool {
+	match := strings.Contains(gocloak.PString(user.Username), filter.Username) &&
+		strings.Contains(gocloak.PString(user.Email), filter.Email) &&
+		strings.Contains(gocloak.PString(user.FirstName), filter.FirstName) &&
+		strings.Contains(gocloak.PString(user.LastName), filter.LastName)
+
+	if !match {
+		return false
+	}
+
+	userAttributes := make(map[string][]string)
+	if user.Attributes != nil {
+		userAttributes = *user.Attributes
+	}
+
+	for k, v := range filter.Attributes {
+		if _, ok := userAttributes[k]; !ok {
+			return false
+		}
+		for _, u := range userAttributes[k] {
+			match = match && strings.Contains(u, v)
+		}
+	}
+
+	return match
 }

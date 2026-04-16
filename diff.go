@@ -28,6 +28,8 @@ type SourceGroupWithMembers struct {
 	SourceGroup SourceGroup
 	// Members is a set of strings, representing users' ObjectID.
 	Members StringSet
+	// SubGroups is a set of strings, representing subgroups' ObjectID.
+	SubGroups StringSet
 }
 
 func (a *App) syncOnce() {
@@ -480,13 +482,23 @@ func (a *App) buildYtsaurusGroup(sourceGroup SourceGroup) (YtsaurusGroup, error)
 
 func (a *App) buildYtsaurusGroupMembers(sourceGroupWithMembers SourceGroupWithMembers, usersMap map[ObjectID]YtsaurusUser, groupsMap map[ObjectID]YtsaurusGroupWithMembers) StringSet {
 	members := NewStringSet()
-	for azureID := range sourceGroupWithMembers.Members.Iter() {
-		if ytUser, ok := usersMap[azureID]; ok {
-			members.Add(ytUser.Username)
-		} else if ytGroup, ok := groupsMap[azureID]; ok && a.saveGroupsNesting { // save group as subgroup of other group
-			members.Add(ytGroup.Name)
+	if sourceGroupWithMembers.Members != nil {
+		for azureID := range sourceGroupWithMembers.Members.Iter() {
+			if ytUser, ok := usersMap[azureID]; ok {
+				members.Add(ytUser.Username)
+			}
+			// User is unknown to the YTsaurus (can be accountEnabled=false).
 		}
-		// User or nested group is unknown to the YTsaurus (can be accountEnabled=false).
+	}
+	if sourceGroupWithMembers.SubGroups != nil {
+		for azureID := range sourceGroupWithMembers.SubGroups.Iter() {
+			if ytGroup, ok := groupsMap[azureID]; ok { // save subgroup as member of parent group
+				members.Add(ytGroup.Name)
+			} else {
+				a.logger.Infof("Unknown subgroup: %v", azureID)
+			}
+			// group unknown to the YTsaurus
+		}
 	}
 	return members
 }

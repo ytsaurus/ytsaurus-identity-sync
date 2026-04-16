@@ -20,14 +20,14 @@ syncConfig: |-
         to: ""
     remove_limit: 10
     ban_before_remove_duration: 168h # 7d
-    save_groups_nesting: true
 
   keycloak:
     url: "http://localhost:8080"
     realm: "test_realm"
     client_id: "test_client"
     client_secret_env_var: "KEYCLOAK_CLIENT_SECRET"
-    users_filter: "username:test_ email:@acme.com"
+    users_attribute_filter: "username:test_ email:@acme.com"
+    users_group_filter: "test_"
     groups_filter: "test_"
 
   ytsaurus:
