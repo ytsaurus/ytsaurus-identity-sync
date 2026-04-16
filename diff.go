@@ -315,7 +315,7 @@ func (a *App) diffGroupMembers(
 	for _, group := range ytGroups {
 		sourceGroup, err := a.buildSourceGroup(&group)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to create azure group from source")
+			return nil, errors.Wrap(err, "failed to create group from source")
 		}
 		ytGroupsWithMembersMap[sourceGroup.GetID()] = group
 	}
@@ -483,19 +483,19 @@ func (a *App) buildYtsaurusGroup(sourceGroup SourceGroup) (YtsaurusGroup, error)
 func (a *App) buildYtsaurusGroupMembers(sourceGroupWithMembers SourceGroupWithMembers, usersMap map[ObjectID]YtsaurusUser, groupsMap map[ObjectID]YtsaurusGroupWithMembers) StringSet {
 	members := NewStringSet()
 	if sourceGroupWithMembers.Members != nil {
-		for azureID := range sourceGroupWithMembers.Members.Iter() {
-			if ytUser, ok := usersMap[azureID]; ok {
+		for userID := range sourceGroupWithMembers.Members.Iter() {
+			if ytUser, ok := usersMap[userID]; ok {
 				members.Add(ytUser.Username)
 			}
 			// User is unknown to the YTsaurus (can be accountEnabled=false).
 		}
 	}
 	if sourceGroupWithMembers.SubGroups != nil {
-		for azureID := range sourceGroupWithMembers.SubGroups.Iter() {
-			if ytGroup, ok := groupsMap[azureID]; ok { // save subgroup as member of parent group
+		for groupID := range sourceGroupWithMembers.SubGroups.Iter() {
+			if ytGroup, ok := groupsMap[groupID]; ok { // save subgroup as member of parent group
 				members.Add(ytGroup.Name)
 			} else {
-				a.logger.Infof("Unknown subgroup: %v", azureID)
+				a.logger.Infof("Unknown subgroup: %v", groupID)
 			}
 			// group unknown to the YTsaurus
 		}

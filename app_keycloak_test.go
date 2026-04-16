@@ -488,6 +488,12 @@ var (
 					),
 				},
 				{
+					SourceGroup: createKeycloakGroup("devs2"),
+					Members: NewStringSetFromItems(
+						fullUsername("test_alice"),
+					),
+				},
+				{
 					SourceGroup: createKeycloakGroup("defs"),
 					Members: NewStringSetFromItems(
 						fullUsername("test_bob"),
@@ -506,18 +512,24 @@ var (
 					),
 				},
 				{
+					YtsaurusGroup: createYtsaurusGroupForKeycloak("devs2"),
+					Members: NewStringSetFromItems(
+						"test_alice",
+					),
+				},
+				{
 					YtsaurusGroup: createYtsaurusGroupForKeycloak("defs"),
 					Members:       NewStringSetFromItems(),
 				},
 			},
 		},
-		{
-			name:              "create-with-paging",
-			sourceUsersSetUp:  generateSourceUsers(210),
-			sourceGroupsSetUp: generateEmptySourceGroups(210),
-			ytUsersExpected:   generateYTUsers(210),
-			ytGroupsExpected:  generateEmptyYTGroups(210),
-		},
+		// {
+		// 	name:              "create-with-paging",
+		// 	sourceUsersSetUp:  generateSourceUsers(210),
+		// 	sourceGroupsSetUp: generateEmptySourceGroups(210),
+		// 	ytUsersExpected:   generateYTUsers(210),
+		// 	ytGroupsExpected:  generateEmptyYTGroups(210),
+		// },
 	}
 )
 

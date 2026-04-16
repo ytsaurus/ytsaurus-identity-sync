@@ -19,7 +19,7 @@ type Keycloak struct {
 	logger appLoggerType
 }
 
-type AttrbiuteFilter struct {
+type AttributeFilter struct {
 	Username   string
 	Email      string
 	FirstName  string
@@ -71,6 +71,8 @@ func (k *Keycloak) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 		return nil, err
 	}
 
+	k.logger.Debugf("Found %d groups", len(keycloakGroups))
+
 	return k.convertToSourceGroups(token, keycloakGroups)
 }
 
@@ -110,8 +112,6 @@ func (k *Keycloak) GetUsersByAttributes(token string) ([]SourceUser, error) {
 			return nil, err
 		}
 
-		k.logger.Debugf("Found %d users", len(usersChunk))
-
 		sourceUsers = append(sourceUsers, k.convertToSourceUsers(usersChunk)...)
 
 		if len(usersChunk) < defaultKeycloakPageSize {
@@ -120,6 +120,8 @@ func (k *Keycloak) GetUsersByAttributes(token string) ([]SourceUser, error) {
 
 		first += defaultKeycloakPageSize
 	}
+
+	k.logger.Debugf("Found %d users", len(sourceUsers))
 
 	return sourceUsers, nil
 }
@@ -131,14 +133,25 @@ func (k *Keycloak) GetUsersByGroups(token string) ([]SourceUser, error) {
 	}
 
 	var sourceUsers []SourceUser
+	userIDsMap := make(map[ObjectID]bool)
 	for _, g := range groups {
 		members, err := k.getGroupMembers(token, g)
 		if err != nil {
 			return nil, err
 		}
+
 		members = k.filterUsersByAttributes(members, k.config.UsersAttributeFilter)
-		sourceUsers = append(sourceUsers, k.convertToSourceUsers(members)...)
+		convertedMembers := k.convertToSourceUsers(members)
+
+		for _, m := range convertedMembers {
+			if !userIDsMap[m.GetID()] {
+				userIDsMap[m.GetID()] = true
+				sourceUsers = append(sourceUsers, m)
+			}
+		}
 	}
+
+	k.logger.Debugf("Found %d users", len(sourceUsers))
 
 	return sourceUsers, nil
 }
@@ -306,12 +319,12 @@ func (k *Keycloak) getGroupMemberIDs(token string, group *gocloak.Group) (String
 	return memberIDs, nil
 }
 
-func parseAttributesFilter(filter string) AttrbiuteFilter {
-	attrbiuteFilter := AttrbiuteFilter{
+func parseAttributesFilter(filter string) AttributeFilter {
+	attributeFilter := AttributeFilter{
 		Attributes: make(map[string]string),
 	}
 	if filter == "" {
-		return attrbiuteFilter
+		return attributeFilter
 	}
 
 	for _, f := range strings.Split(filter, " ") {
@@ -321,22 +334,22 @@ func parseAttributesFilter(filter string) AttrbiuteFilter {
 		kv := strings.Split(f, ":")
 		switch kv[0] {
 		case "username":
-			attrbiuteFilter.Username = kv[1]
+			attributeFilter.Username = kv[1]
 		case "email":
-			attrbiuteFilter.Email = kv[1]
+			attributeFilter.Email = kv[1]
 		case "firstName":
-			attrbiuteFilter.FirstName = kv[1]
+			attributeFilter.FirstName = kv[1]
 		case "lastName":
-			attrbiuteFilter.LastName = kv[1]
+			attributeFilter.LastName = kv[1]
 		default:
-			attrbiuteFilter.Attributes[kv[0]] = kv[1]
+			attributeFilter.Attributes[kv[0]] = kv[1]
 		}
 	}
 
-	return attrbiuteFilter
+	return attributeFilter
 }
 
-func isUserMatchFilter(user *gocloak.User, filter AttrbiuteFilter) bool {
+func isUserMatchFilter(user *gocloak.User, filter AttributeFilter) bool {
 	match := strings.Contains(gocloak.PString(user.Username), filter.Username) &&
 		strings.Contains(gocloak.PString(user.Email), filter.Email) &&
 		strings.Contains(gocloak.PString(user.FirstName), filter.FirstName) &&
