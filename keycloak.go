@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"regexp"
 	"strings"
 
 	"github.com/Nerzal/gocloak/v13"
+	"github.com/dlclark/regexp2"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"k8s.io/utils/env"
@@ -18,8 +18,8 @@ const (
 type Keycloak struct {
 	client           *gocloak.GoCloak
 	config           *KeycloakConfig
-	usersGroupFilter *regexp.Regexp
-	groupsFilter     *regexp.Regexp
+	usersGroupFilter *regexp2.Regexp
+	groupsFilter     *regexp2.Regexp
 	logger           appLoggerType
 }
 
@@ -34,11 +34,11 @@ type AttributeFilter struct {
 func NewKeycloak(cfg *KeycloakConfig, logger appLoggerType) (*Keycloak, error) {
 	client := gocloak.NewClient(cfg.URL)
 
-	usersGroupfilter, err := regexp.Compile(cfg.UsersGroupFilter)
+	usersGroupfilter, err := regexp2.Compile(cfg.UsersGroupFilter, 0)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse users group filter")
 	}
-	groupsFilter, err := regexp.Compile(cfg.GroupsFilter)
+	groupsFilter, err := regexp2.Compile(cfg.GroupsFilter, 0)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse groups filter")
 	}
@@ -171,7 +171,7 @@ func (k *Keycloak) GetUsersByGroups(token string) ([]SourceUser, error) {
 	return sourceUsers, nil
 }
 
-func (k *Keycloak) getGroupsByRegexp(token string, filter *regexp.Regexp) ([]*gocloak.Group, error) {
+func (k *Keycloak) getGroupsByRegexp(token string, filter *regexp2.Regexp) ([]*gocloak.Group, error) {
 	ctx := context.Background()
 
 	var groups []*gocloak.Group
@@ -202,11 +202,11 @@ func (k *Keycloak) getGroupsByRegexp(token string, filter *regexp.Regexp) ([]*go
 	return groups, nil
 }
 
-func (k *Keycloak) filterGroups(groups []*gocloak.Group, filter *regexp.Regexp) []*gocloak.Group {
+func (k *Keycloak) filterGroups(groups []*gocloak.Group, filter *regexp2.Regexp) []*gocloak.Group {
 	var filteredGroups []*gocloak.Group
 
 	for _, g := range groups {
-		if filter.MatchString(gocloak.PString(g.Name)) {
+		if match, _ := filter.MatchString(gocloak.PString(g.Name)); match {
 			filteredGroups = append(filteredGroups, g)
 		}
 	}
