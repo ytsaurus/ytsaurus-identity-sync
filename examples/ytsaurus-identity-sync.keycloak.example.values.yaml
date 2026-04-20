@@ -27,8 +27,8 @@ syncConfig: |-
     client_id: "test_client"
     client_secret_env_var: "KEYCLOAK_CLIENT_SECRET"
     users_attribute_filter: "username:test_ email:@acme.com"
-    users_group_filter: "test_"
-    groups_filter: "test_"
+    users_group_filter: "^test_.*"
+    groups_filter: "^test_.*"
 
   ytsaurus:
     proxy: "{{ .Values.yt.proxy }}"

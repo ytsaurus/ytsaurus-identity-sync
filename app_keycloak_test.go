@@ -468,8 +468,8 @@ var (
 			name: "create-users-groups-filtered",
 			keycloakConfigModifier: func(cfg *KeycloakConfig) {
 				cfg.UsersAttributeFilter = "username:test_ email:@acme.com"
-				cfg.UsersGroupFilter = "devs"
-				cfg.GroupsFilter = "de"
+				cfg.UsersGroupFilter = "^acme.devs.*"
+				cfg.GroupsFilter = "^acme.de.*"
 			},
 			sourceUsersSetUp: []SourceUser{
 				createKeycloakUser("test_alice"),

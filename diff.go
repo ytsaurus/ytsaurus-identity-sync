@@ -90,7 +90,7 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 		wasBanned, wasRemoved, removeErr := a.banOrRemoveUser(user)
 		if removeErr != nil {
 			banOrremoveErrCount++
-			a.logger.Errorw("failed to ban or remove user", zap.Error(err), "user", user)
+			a.logger.Warnw("failed to ban or remove user", zap.Error(err), "user", user)
 		}
 		if wasBanned {
 			bannedCount++
@@ -103,14 +103,14 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 		err = a.ytsaurus.CreateUser(user)
 		if err != nil {
 			createErrCount++
-			a.logger.Errorw("failed to create user", zap.Error(err), "user", user)
+			a.logger.Warnw("failed to create user", zap.Error(err), "user", user)
 		}
 	}
 	for _, updatedUser := range diff.update {
 		err = a.ytsaurus.UpdateUser(updatedUser.OldUsername, updatedUser.YtsaurusUser)
 		if err != nil {
 			updateErrCount++
-			a.logger.Errorw("failed to update user", zap.Error(err), "user", updatedUser)
+			a.logger.Warnw("failed to update user", zap.Error(err), "user", updatedUser)
 		}
 	}
 	a.logger.Infow("Finish syncing users",
@@ -149,21 +149,21 @@ func (a *App) syncGroups(usersMap map[ObjectID]YtsaurusUser) error {
 		err = a.ytsaurus.RemoveGroup(group.Name)
 		if err != nil {
 			removeErrCount++
-			a.logger.Errorw("failed to remove group", zap.Error(err), "group", group)
+			a.logger.Warnw("failed to remove group", zap.Error(err), "group", group)
 		}
 	}
 	for _, group := range diff.groupsToCreate {
 		err = a.ytsaurus.CreateGroup(group)
 		if err != nil {
 			createErrCount++
-			a.logger.Errorw("failed to create group", zap.Error(err), "group", group)
+			a.logger.Warnw("failed to create group", zap.Error(err), "group", group)
 		}
 	}
 	for _, updatedGroup := range diff.groupsToUpdate {
 		err = a.ytsaurus.UpdateGroup(updatedGroup.OldName, updatedGroup.YtsaurusGroup)
 		if err != nil {
 			updateErrCount++
-			a.logger.Errorw("failed to update group", zap.Error(err), "group", updatedGroup)
+			a.logger.Warnw("failed to update group", zap.Error(err), "group", updatedGroup)
 		}
 	}
 	a.logger.Infow("Finish syncing groups",
@@ -199,7 +199,7 @@ func (a *App) syncGroupMembers(usersMap map[ObjectID]YtsaurusUser) error {
 		err = a.ytsaurus.RemoveMember(membership.MemberName, membership.GroupName)
 		if err != nil {
 			removeMemberErrCount++
-			a.logger.Errorw("failed to remove member", zap.Error(err), "member", membership.MemberName, "group", membership.GroupName)
+			a.logger.Warnw("failed to remove member", zap.Error(err), "member", membership.MemberName, "group", membership.GroupName)
 			// TODO: alerts
 		}
 	}
@@ -207,7 +207,7 @@ func (a *App) syncGroupMembers(usersMap map[ObjectID]YtsaurusUser) error {
 		err = a.ytsaurus.AddMember(membership.MemberName, membership.GroupName)
 		if err != nil {
 			addMemberErrCount++
-			a.logger.Errorw("failed to add member", zap.Error(err), "member", membership.MemberName, "group", membership.GroupName)
+			a.logger.Warnw("failed to add member", zap.Error(err), "member", membership.MemberName, "group", membership.GroupName)
 			// TODO: alerts
 		}
 	}

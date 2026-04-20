@@ -296,7 +296,7 @@ func (y *Ytsaurus) RemoveGroup(groupname string) error {
 }
 
 func (y *Ytsaurus) AddMember(memberName, groupname string) error {
-	if err := y.ensureUserOrGroupManaged(memberName); err != nil {
+	if err := y.ensureGroupMemberManaged(memberName); err != nil {
 		return err
 	}
 	if err := y.ensureGroupManaged(groupname); err != nil {
@@ -317,7 +317,7 @@ func (y *Ytsaurus) AddMember(memberName, groupname string) error {
 }
 
 func (y *Ytsaurus) RemoveMember(memberName, groupname string) error {
-	if err := y.ensureUserOrGroupManaged(memberName); err != nil {
+	if err := y.ensureGroupMemberManaged(memberName); err != nil {
 		return err
 	}
 	if err := y.ensureGroupManaged(groupname); err != nil {
@@ -359,16 +359,16 @@ func (y *Ytsaurus) ensureUserManaged(username string) error {
 	return nil
 }
 
-func (y *Ytsaurus) ensureUserOrGroupManaged(name string) error {
-	err := y.ensureUserManaged(name)
+func (y *Ytsaurus) ensureGroupMemberManaged(memberName string) error {
+	err := y.ensureUserManaged(memberName)
 	if err == nil {
 		return nil
 	}
-	err = y.ensureGroupManaged(name)
+	err = y.ensureGroupManaged(memberName)
 	if err == nil {
 		return nil
 	}
-	return err
+	return errors.New("Prevented attempt to change manual managed group member")
 }
 
 func (y *Ytsaurus) isGroupManaged(name string) (bool, error) {

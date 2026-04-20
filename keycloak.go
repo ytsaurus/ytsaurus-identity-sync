@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"github.com/Nerzal/gocloak/v13"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"k8s.io/utils/env"
 )
@@ -14,9 +16,11 @@ const (
 )
 
 type Keycloak struct {
-	client *gocloak.GoCloak
-	config *KeycloakConfig
-	logger appLoggerType
+	client           *gocloak.GoCloak
+	config           *KeycloakConfig
+	usersGroupFilter *regexp.Regexp
+	groupsFilter     *regexp.Regexp
+	logger           appLoggerType
 }
 
 type AttributeFilter struct {
@@ -30,10 +34,21 @@ type AttributeFilter struct {
 func NewKeycloak(cfg *KeycloakConfig, logger appLoggerType) (*Keycloak, error) {
 	client := gocloak.NewClient(cfg.URL)
 
+	usersGroupfilter, err := regexp.Compile(cfg.UsersGroupFilter)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse users group filter")
+	}
+	groupsFilter, err := regexp.Compile(cfg.GroupsFilter)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse groups filter")
+	}
+
 	return &Keycloak{
-		client: client,
-		config: cfg,
-		logger: logger,
+		client:           client,
+		config:           cfg,
+		usersGroupFilter: usersGroupfilter,
+		groupsFilter:     groupsFilter,
+		logger:           logger,
 	}, nil
 }
 
@@ -66,7 +81,7 @@ func (k *Keycloak) GetGroupsWithMembers() ([]SourceGroupWithMembers, error) {
 		return nil, err
 	}
 
-	keycloakGroups, err := k.getGroupsByFilter(token, k.config.GroupsFilter)
+	keycloakGroups, err := k.getGroupsByRegexp(token, k.groupsFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +142,7 @@ func (k *Keycloak) GetUsersByAttributes(token string) ([]SourceUser, error) {
 }
 
 func (k *Keycloak) GetUsersByGroups(token string) ([]SourceUser, error) {
-	groups, err := k.getGroupsByFilter(token, k.config.UsersGroupFilter)
+	groups, err := k.getGroupsByRegexp(token, k.usersGroupFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +171,7 @@ func (k *Keycloak) GetUsersByGroups(token string) ([]SourceUser, error) {
 	return sourceUsers, nil
 }
 
-func (k *Keycloak) getGroupsByFilter(token string, filter string) ([]*gocloak.Group, error) {
+func (k *Keycloak) getGroupsByRegexp(token string, filter *regexp.Regexp) ([]*gocloak.Group, error) {
 	ctx := context.Background()
 
 	var groups []*gocloak.Group
@@ -173,7 +188,6 @@ func (k *Keycloak) getGroupsByFilter(token string, filter string) ([]*gocloak.Gr
 			k.logger.Errorw("failed to get keycloak groups", zap.Error(err), "realm", k.config.Realm)
 			return nil, err
 		}
-		k.logger.Debugf("Found %d groups", len(groupsChunk))
 
 		flattenGroupsChunk := k.flattenGroups(groupsChunk)
 		flattenGroupsChunk = k.filterGroups(flattenGroupsChunk, filter)
@@ -188,10 +202,11 @@ func (k *Keycloak) getGroupsByFilter(token string, filter string) ([]*gocloak.Gr
 	return groups, nil
 }
 
-func (k *Keycloak) filterGroups(groups []*gocloak.Group, filter string) []*gocloak.Group {
+func (k *Keycloak) filterGroups(groups []*gocloak.Group, filter *regexp.Regexp) []*gocloak.Group {
 	var filteredGroups []*gocloak.Group
+
 	for _, g := range groups {
-		if strings.Contains(gocloak.PString(g.Name), filter) {
+		if filter.MatchString(gocloak.PString(g.Name)) {
 			filteredGroups = append(filteredGroups, g)
 		}
 	}
@@ -243,7 +258,6 @@ func (k *Keycloak) getGroupMembers(token string, group *gocloak.Group) ([]*goclo
 		if err != nil {
 			return nil, err
 		}
-		k.logger.Debugf("Found %d group %s members", len(membersChunk), gocloak.PString(group.Name))
 
 		for _, m := range membersChunk {
 			if gocloak.PBool(m.EmailVerified) && gocloak.PBool(m.Enabled) {
@@ -256,6 +270,8 @@ func (k *Keycloak) getGroupMembers(token string, group *gocloak.Group) ([]*goclo
 		}
 		first += defaultKeycloakPageSize
 	}
+
+	k.logger.Debugf("Found %d group %s members", len(members), gocloak.PString(group.Name))
 
 	return members, nil
 }
