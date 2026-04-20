@@ -250,13 +250,13 @@ func (y *Ytsaurus) CreateGroup(group YtsaurusGroup) error {
 // UpdateGroup handles YTsaurus group attributes update.
 // In particular @name also may be changed, in that case groupname should be current group name.
 func (y *Ytsaurus) UpdateGroup(groupname string, group YtsaurusGroup) error {
+	if err := y.ensureGroupManaged(groupname); err != nil {
+		return err
+	}
 	logger := y.logger.With("groupname", groupname, "group", group)
 	if y.dryRunGroups {
 		logger.Debugw("[DRY-RUN] Going to update group")
 		return nil
-	}
-	if err := y.ensureGroupManaged(groupname); err != nil {
-		return err
 	}
 	logger.Debugw("Going to update group")
 
@@ -274,13 +274,13 @@ func (y *Ytsaurus) UpdateGroup(groupname string, group YtsaurusGroup) error {
 }
 
 func (y *Ytsaurus) RemoveGroup(groupname string) error {
+	if err := y.ensureGroupManaged(groupname); err != nil {
+		return err
+	}
 	logger := y.logger.With("groupname", groupname)
 	if y.dryRunGroups {
 		logger.Debugw("[DRY-RUN] Going to remove group")
 		return nil
-	}
-	if err := y.ensureGroupManaged(groupname); err != nil {
-		return err
 	}
 	logger.Debugw("Going to remove group")
 
@@ -296,15 +296,15 @@ func (y *Ytsaurus) RemoveGroup(groupname string) error {
 }
 
 func (y *Ytsaurus) AddMember(memberName, groupname string) error {
-	if y.dryRunMembers {
-		y.logger.Debugw("[DRY-RUN] Going to add member", "membername", memberName, "groupname", groupname)
-		return nil
-	}
 	if err := y.ensureUserOrGroupManaged(memberName); err != nil {
 		return err
 	}
 	if err := y.ensureGroupManaged(groupname); err != nil {
 		return err
+	}
+	if y.dryRunMembers {
+		y.logger.Debugw("[DRY-RUN] Going to add member", "membername", memberName, "groupname", groupname)
+		return nil
 	}
 	y.logger.Debugw("Going to add member", "membername", memberName, "groupname", groupname)
 
@@ -317,15 +317,15 @@ func (y *Ytsaurus) AddMember(memberName, groupname string) error {
 }
 
 func (y *Ytsaurus) RemoveMember(memberName, groupname string) error {
-	if y.dryRunMembers {
-		y.logger.Debugw("[DRY-RUN] Going to remove member", "membername", memberName, "groupname", groupname)
-		return nil
-	}
 	if err := y.ensureUserOrGroupManaged(memberName); err != nil {
 		return err
 	}
 	if err := y.ensureGroupManaged(groupname); err != nil {
 		return err
+	}
+	if y.dryRunMembers {
+		y.logger.Debugw("[DRY-RUN] Going to remove member", "membername", memberName, "groupname", groupname)
+		return nil
 	}
 	y.logger.Debugw("Going to remove member", "membername", memberName, "groupname", groupname)
 
