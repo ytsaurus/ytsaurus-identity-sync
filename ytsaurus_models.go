@@ -48,6 +48,10 @@ func NewEmptyYtsaurusGroupWithMembers(group YtsaurusGroup) YtsaurusGroupWithMemb
 	return YtsaurusGroupWithMembers{YtsaurusGroup: group, Members: NewStringSet()}
 }
 
+func NewYtsaurusGroupWithMembers(group YtsaurusGroup, members StringSet) YtsaurusGroupWithMembers {
+	return YtsaurusGroupWithMembers{YtsaurusGroup: group, Members: members.Clone()}
+}
+
 type YtsaurusMembership struct {
 	GroupName  string
 	MemberName string

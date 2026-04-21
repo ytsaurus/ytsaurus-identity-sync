@@ -107,6 +107,10 @@ func (y *Ytsaurus) GetUsers() ([]YtsaurusUser, error) {
 }
 
 func (y *Ytsaurus) CreateUser(user YtsaurusUser) error {
+	if err := y.ensureUserNotExists(user.Username); err != nil {
+		return err
+	}
+
 	if y.dryRunUsers {
 		y.logger.Debugw("[DRY-RUN] Going to create user", "user", user)
 		return nil
@@ -227,6 +231,10 @@ func (y *Ytsaurus) GetGroupsWithMembers() ([]YtsaurusGroupWithMembers, error) {
 }
 
 func (y *Ytsaurus) CreateGroup(group YtsaurusGroup) error {
+	if err := y.ensureGroupNotExists(group.Name); err != nil {
+		return err
+	}
+
 	if y.dryRunGroups {
 		y.logger.Debugw("[DRY-RUN] Going to create group", "name", group.Name)
 		return nil
@@ -348,6 +356,17 @@ func (y *Ytsaurus) isUserManaged(username string) (bool, error) {
 	)
 }
 
+func (y Ytsaurus) isUserExists(username string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
+	defer cancel()
+
+	return y.client.NodeExists(
+		ctx,
+		ypath.Path(fmt.Sprintf("//sys/users/%v", username)),
+		nil,
+	)
+}
+
 func (y *Ytsaurus) ensureUserManaged(username string) error {
 	isManaged, err := y.isUserManaged(username)
 	if err != nil {
@@ -355,6 +374,17 @@ func (y *Ytsaurus) ensureUserManaged(username string) error {
 	}
 	if !isManaged {
 		return errors.New("Prevented attempt to change manual managed user")
+	}
+	return nil
+}
+
+func (y *Ytsaurus) ensureUserNotExists(username string) error {
+	exists, err := y.isUserExists(username)
+	if err != nil {
+		return errors.Wrap(err, "Failed to check if user exists")
+	}
+	if exists {
+		return errors.New("Prevented attempt to create existing user")
 	}
 	return nil
 }
@@ -382,6 +412,17 @@ func (y *Ytsaurus) isGroupManaged(name string) (bool, error) {
 	)
 }
 
+func (y Ytsaurus) isGroupExists(name string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), y.timeout)
+	defer cancel()
+
+	return y.client.NodeExists(
+		ctx,
+		ypath.Path(fmt.Sprintf("//sys/groups/%v", name)),
+		nil,
+	)
+}
+
 func (y *Ytsaurus) ensureGroupManaged(groupname string) error {
 	isManaged, err := y.isGroupManaged(groupname)
 	if err != nil {
@@ -389,6 +430,17 @@ func (y *Ytsaurus) ensureGroupManaged(groupname string) error {
 	}
 	if !isManaged {
 		return errors.New("Prevented attempt to change manual managed group " + groupname)
+	}
+	return nil
+}
+
+func (y *Ytsaurus) ensureGroupNotExists(name string) error {
+	exists, err := y.isGroupExists(name)
+	if err != nil {
+		return errors.Wrap(err, "Failed to check if group exists")
+	}
+	if exists {
+		return errors.New("Prevented attempt to create existing group")
 	}
 	return nil
 }
