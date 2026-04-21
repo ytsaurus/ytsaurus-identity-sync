@@ -193,6 +193,9 @@ func (a *App) syncGroupMembers(usersMap map[ObjectID]YtsaurusUser) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to calculate groups diff")
 	}
+	if a.isRemoveLimitReached(len(membersDiff.membersToRemove)) {
+		return fmt.Errorf("delete limit in one cycle reached: %d %v", len(membersDiff.membersToRemove), membersDiff.membersToRemove)
+	}
 
 	var addMemberErrCount, removeMemberErrCount int
 	for _, membership := range membersDiff.membersToRemove {
