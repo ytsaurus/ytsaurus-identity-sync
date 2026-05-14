@@ -26,7 +26,6 @@ type App struct {
 	groupnameReplaces []ReplacementPair
 	removeLimit       int
 	banDuration       time.Duration
-	saveGroupsNesting bool
 
 	ytsaurus *Ytsaurus
 	source   Source

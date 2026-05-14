@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultKeycloakPageSize = 100
+	defaultKeycloakPageSize = 200
 )
 
 type Keycloak struct {
