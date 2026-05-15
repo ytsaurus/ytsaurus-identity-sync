@@ -141,19 +141,21 @@ var (
 			},
 		},
 		{
-			name: "remove-limit-users-3",
+			name: "remove-limit-users-2",
 			appConfig: &AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
-				RemoveLimit:           3,
+				RemoveLimit:           2,
 			},
-			sourceUsersSetUp: []SourceUser{},
+			sourceUsersSetUp: []SourceUser{
+				createKeycloakUser(carolName),
+			},
 			ytUsersSetUp: []YtsaurusUser{
 				createYtsaurusUserForKeycloak(aliceName),
 				createYtsaurusUserForKeycloak(bobName),
-				createYtsaurusUserForKeycloak(carolName),
 			},
 			// No one is deleted: limitation works.
+			// One is created
 			ytUsersExpected: []YtsaurusUser{
 				createYtsaurusUserForKeycloak(aliceName),
 				createYtsaurusUserForKeycloak(bobName),
@@ -161,19 +163,24 @@ var (
 			},
 		},
 		{
-			name: "remove-limit-groups-3",
+			name: "remove-limit-groups-2",
 			appConfig: &AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
-				RemoveLimit:           3,
+				RemoveLimit:           2,
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{},
+			sourceGroupsSetUp: []SourceGroupWithMembers{
+				{
+					SourceGroup: createKeycloakGroup("devs"),
+					Members:     NewStringSet(),
+				},
+			},
 			ytGroupsSetUp: []YtsaurusGroupWithMembers{
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroupForKeycloak("devs")),
 				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroupForKeycloak("qa")),
 				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroupForKeycloak("hq")),
 			},
 			// No group is deleted: limitation works.
+			// One is created
 			ytGroupsExpected: []YtsaurusGroupWithMembers{
 				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroupForKeycloak("devs")),
 				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroupForKeycloak("qa")),

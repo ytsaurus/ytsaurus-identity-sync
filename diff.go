@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"time"
 
@@ -80,9 +79,6 @@ func (a *App) syncUsers() (map[ObjectID]YtsaurusUser, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to calculate users diff")
 	}
-	if a.isRemoveLimitReached(len(diff.remove)) {
-		return nil, fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.remove), diff.remove)
-	}
 
 	var bannedCount, removedCount int
 	var createErrCount, updateErrCount, banOrremoveErrCount int
@@ -140,9 +136,6 @@ func (a *App) syncGroups() (map[ObjectID]YtsaurusGroupWithMembers, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to calculate groups diff")
 	}
-	if a.isRemoveLimitReached(len(diff.groupsToRemove)) {
-		return nil, fmt.Errorf("delete limit in one cycle reached: %d %v", len(diff.groupsToRemove), diff)
-	}
 
 	var createErrCount, updateErrCount, removeErrCount int
 	for _, group := range diff.groupsToRemove {
@@ -188,9 +181,6 @@ func (a *App) syncGroupMembers(usersMap map[ObjectID]YtsaurusUser, groupsMap map
 	membersDiff, err := a.diffGroupMembers(sourceGroups, groupsMap, usersMap)
 	if err != nil {
 		return errors.Wrap(err, "failed to calculate groups diff")
-	}
-	if a.isRemoveLimitReached(len(membersDiff.membersToRemove)) {
-		return fmt.Errorf("delete limit in one cycle reached: %d %v", len(membersDiff.membersToRemove), membersDiff.membersToRemove)
 	}
 
 	var addMemberErrCount, removeMemberErrCount int
@@ -264,12 +254,13 @@ func (a *App) diffGroups(
 		}
 	}
 
+	var groupIDsToRemove []ObjectID
 	for objectID, ytGroupWithMembers := range ytGroupsWithMembersMap {
 		// Collecting groups to remove (the ones that exist in YTsaurus and not in Azure).
 		sourceGroupWithMembers, ok := sourceGroupsWithMembersMap[objectID]
 		if !ok {
 			groupsToRemove = append(groupsToRemove, ytGroupWithMembers)
-			delete(resultGroupsMap, objectID)
+			groupIDsToRemove = append(groupIDsToRemove, objectID)
 			continue
 		}
 
@@ -289,6 +280,18 @@ func (a *App) diffGroups(
 			)
 			groupsToUpdate = append(groupsToUpdate, updatedYtGroup)
 			resultGroupsMap[objectID] = updatedYtGroup.YtsaurusGroupWithMembers
+		}
+	}
+
+	if a.isRemoveLimitReached(len(groupsToRemove)) {
+		a.logger.Warnw("delete limit in one cycle reached for groups, skip removals",
+			"remove_count", len(groupsToRemove),
+			"remove_limit", a.removeLimit,
+		)
+		groupsToRemove = nil
+	} else {
+		for _, objectID := range groupIDsToRemove {
+			delete(resultGroupsMap, objectID)
 		}
 	}
 
@@ -340,6 +343,14 @@ func (a *App) diffGroupMembers(
 		}
 	}
 
+	if a.isRemoveLimitReached(len(membersToRemove)) {
+		a.logger.Warnw("delete limit in one cycle reached for group memberships, skip removals",
+			"remove_count", len(membersToRemove),
+			"remove_limit", a.removeLimit,
+		)
+		membersToRemove = nil
+	}
+
 	return &groupMemberDiff{
 		membersToAdd:    membersToAdd,
 		membersToRemove: membersToRemove,
@@ -387,11 +398,12 @@ func (a *App) diffUsers(
 		}
 	}
 
+	var userIDsToRemove []ObjectID
 	for objectID, ytUser := range ytUsersMap {
 		sourceUser, ok := sourceUsersMap[objectID]
 		if !ok {
 			remove = append(remove, ytUser)
-			delete(resultUsersMap, objectID)
+			userIDsToRemove = append(userIDsToRemove, objectID)
 			continue
 		}
 		newYtUser, err := a.buildYtsaurusUser(sourceUser)
@@ -408,6 +420,19 @@ func (a *App) diffUsers(
 		update = append(update, updatedYtUser)
 		resultUsersMap[objectID] = updatedYtUser.YtsaurusUser
 	}
+
+	if a.isRemoveLimitReached(len(remove)) {
+		a.logger.Warnw("delete limit in one cycle reached for users, skip removals",
+			"remove_count", len(remove),
+			"remove_limit", a.removeLimit,
+		)
+		remove = nil
+	} else {
+		for _, objectID := range userIDsToRemove {
+			delete(resultUsersMap, objectID)
+		}
+	}
+
 	return &usersDiff{
 		create: create,
 		update: update,

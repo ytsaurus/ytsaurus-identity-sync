@@ -243,19 +243,21 @@ var (
 			},
 		},
 		{
-			name: "remove-limit-users-3",
+			name: "remove-limit-users-2",
 			appConfig: &AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
-				RemoveLimit:           3,
+				RemoveLimit:           2,
 			},
-			sourceUsersSetUp: []SourceUser{},
+			sourceUsersSetUp: []SourceUser{
+				aliceAzure,
+			},
 			ytUsersSetUp: []YtsaurusUser{
-				aliceYtsaurus,
 				bobYtsaurus,
 				carolYtsaurus,
 			},
 			// no one is deleted: limitation works
+			// one is created
 			ytUsersExpected: []YtsaurusUser{
 				aliceYtsaurus,
 				bobYtsaurus,
@@ -263,19 +265,24 @@ var (
 			},
 		},
 		{
-			name: "remove-limit-groups-3",
+			name: "remove-limit-groups-2",
 			appConfig: &AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
-				RemoveLimit:           3,
+				RemoveLimit:           2,
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{},
+			sourceGroupsSetUp: []SourceGroupWithMembers{
+				{
+					SourceGroup: devsAzureGroup,
+					Members:     NewStringSet(),
+				},
+			},
 			ytGroupsSetUp: []YtsaurusGroupWithMembers{
-				NewEmptyYtsaurusGroupWithMembers(devsYtsaurusGroup),
 				NewEmptyYtsaurusGroupWithMembers(qaYtsaurusGroup),
 				NewEmptyYtsaurusGroupWithMembers(hqYtsaurusGroup),
 			},
 			// no group is deleted: limitation works
+			// one is created
 			ytGroupsExpected: []YtsaurusGroupWithMembers{
 				NewEmptyYtsaurusGroupWithMembers(devsYtsaurusGroup),
 				NewEmptyYtsaurusGroupWithMembers(qaYtsaurusGroup),

@@ -133,19 +133,21 @@ var (
 			},
 		},
 		{
-			name: "remove-limit-users-3",
+			name: "remove-limit-users-2",
 			appConfig: &AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
-				RemoveLimit:           3,
+				RemoveLimit:           2,
 			},
-			sourceUsersSetUp: []SourceUser{},
+			sourceUsersSetUp: []SourceUser{
+				createLdapUser(aliceName),
+			},
 			ytUsersSetUp: []YtsaurusUser{
-				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
 				createYtsaurusUser(carolName),
 			},
 			// No one is deleted: limitation works.
+			// One is created
 			ytUsersExpected: []YtsaurusUser{
 				createYtsaurusUser(aliceName),
 				createYtsaurusUser(bobName),
@@ -153,21 +155,35 @@ var (
 			},
 		},
 		{
-			name: "remove-limit-groups-3",
+			name: "remove-limit-groups-2",
 			appConfig: &AppConfig{
 				UsernameReplacements:  defaultUsernameReplacements,
 				GroupnameReplacements: defaultGroupnameReplacements,
-				RemoveLimit:           3,
+				RemoveLimit:           2,
 			},
-			sourceGroupsSetUp: []SourceGroupWithMembers{},
+			sourceUsersSetUp: []SourceUser{
+				createLdapUser(aliceName),
+			},
+			sourceGroupsSetUp: []SourceGroupWithMembers{
+				{
+					SourceGroup: createLdapGroup("devs"),
+					Members:     NewStringSetFromItems(getUserID(aliceName)),
+				},
+			},
 			ytGroupsSetUp: []YtsaurusGroupWithMembers{
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("devs")),
 				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("qa")),
 				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("hq")),
 			},
+			ytUsersExpected: []YtsaurusUser{
+				createYtsaurusUser(aliceName),
+			},
 			// No group is deleted: limitation works.
+			// One group is created
 			ytGroupsExpected: []YtsaurusGroupWithMembers{
-				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("devs")),
+				{
+					YtsaurusGroup: createYtsaurusGroup("devs"),
+					Members:       NewStringSetFromItems(aliceName),
+				},
 				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("qa")),
 				NewEmptyYtsaurusGroupWithMembers(createYtsaurusGroup("hq")),
 			},
