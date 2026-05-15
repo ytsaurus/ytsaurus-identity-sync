@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Nerzal/gocloak/v13"
+	"github.com/Nerzal/gocloak/v14"
 	"github.com/stretchr/testify/require"
 	testclock "k8s.io/utils/clock/testing"
 )

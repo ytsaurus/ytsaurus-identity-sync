@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Nerzal/gocloak/v13"
+	"github.com/Nerzal/gocloak/v14"
 	"github.com/dlclark/regexp2"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -174,24 +174,32 @@ func (k *Keycloak) GetUsersByGroups(token string) ([]SourceUser, error) {
 func (k *Keycloak) getGroupsByRegexp(token string, filter *regexp2.Regexp) ([]*gocloak.Group, error) {
 	ctx := context.Background()
 
-	var groups []*gocloak.Group
-	first := 0
+	var groupsQueue []*gocloak.Group
+	knownGroupIDs := make(map[string]bool)
+	enqueueGroups := func(groupsToAdd []*gocloak.Group) {
+		for _, group := range groupsToAdd {
+			groupID := gocloak.PString(group.ID)
+			if exists := knownGroupIDs[groupID]; exists {
+				continue
+			}
+			knownGroupIDs[groupID] = true
+			groupsQueue = append(groupsQueue, group)
+		}
+	}
 
+	first := 0
 	for {
 		k.logger.Debugf("Processing groups from %d ...", first)
 		groupsChunk, err := k.client.GetGroups(ctx, token, k.config.Realm, gocloak.GetGroupsParams{
-			Search: gocloak.StringP(""),
-			First:  gocloak.IntP(first),
-			Max:    gocloak.IntP(defaultKeycloakPageSize),
+			First: gocloak.IntP(first),
+			Max:   gocloak.IntP(defaultKeycloakPageSize),
 		})
 		if err != nil {
 			k.logger.Errorw("failed to get keycloak groups", zap.Error(err), "realm", k.config.Realm)
 			return nil, err
 		}
 
-		flattenGroupsChunk := k.flattenGroups(groupsChunk)
-		flattenGroupsChunk = k.filterGroups(flattenGroupsChunk, filter)
-		groups = append(groups, flattenGroupsChunk...)
+		enqueueGroups(groupsChunk)
 
 		if len(groupsChunk) < defaultKeycloakPageSize {
 			break
@@ -199,7 +207,53 @@ func (k *Keycloak) getGroupsByRegexp(token string, filter *regexp2.Regexp) ([]*g
 		first += defaultKeycloakPageSize
 	}
 
-	return groups, nil
+	var groups []*gocloak.Group
+	for len(groupsQueue) > 0 {
+		group := groupsQueue[0]
+		groupsQueue = groupsQueue[1:]
+
+		groupID := gocloak.PString(group.ID)
+		childGroups, err := k.getChildGroups(groupID, token)
+		if err != nil {
+			k.logger.Errorw("failed to get child groups", zap.Error(err), "realm", k.config.Realm, "group_id", groupID)
+			return nil, err
+		}
+
+		group.SubGroups = make([]gocloak.Group, 0, len(childGroups))
+		for _, childGroup := range childGroups {
+			group.SubGroups = append(group.SubGroups, *childGroup)
+		}
+		groups = append(groups, group)
+
+		enqueueGroups(childGroups)
+	}
+
+	return k.filterGroups(groups, filter), nil
+}
+
+func (k *Keycloak) getChildGroups(groupID, token string) ([]*gocloak.Group, error) {
+	ctx := context.Background()
+
+	var childGroups []*gocloak.Group
+	first := 0
+	for {
+		k.logger.Debugf("Processing child groups for %s from %d ...", groupID, first)
+		childGroupsChunk, err := k.client.GetChildGroups(ctx, token, k.config.Realm, groupID, gocloak.GetChildGroupsParams{
+			First: gocloak.IntP(first),
+			Max:   gocloak.IntP(defaultKeycloakPageSize),
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		childGroups = append(childGroups, childGroupsChunk...)
+		if len(childGroupsChunk) < defaultKeycloakPageSize {
+			break
+		}
+		first += defaultKeycloakPageSize
+	}
+
+	return childGroups, nil
 }
 
 func (k *Keycloak) filterGroups(groups []*gocloak.Group, filter *regexp2.Regexp) []*gocloak.Group {
@@ -222,25 +276,6 @@ func (k *Keycloak) filterUsersByAttributes(users []*gocloak.User, filter string)
 		}
 	}
 	return filteredUsers
-}
-
-func (k *Keycloak) flattenGroups(groups []*gocloak.Group) []*gocloak.Group {
-	var flatList []*gocloak.Group
-	flatList = append(flatList, groups...)
-
-	for i := 0; i < len(flatList); i++ {
-		group := flatList[i]
-
-		if group.SubGroups == nil {
-			continue
-		}
-
-		for _, subGroup := range *group.SubGroups {
-			flatList = append(flatList, &subGroup)
-		}
-	}
-
-	return flatList
 }
 
 func (k *Keycloak) getGroupMembers(token string, group *gocloak.Group) ([]*gocloak.User, error) {
@@ -302,7 +337,7 @@ func (k *Keycloak) convertToSourceGroups(token string, groups []*gocloak.Group) 
 
 		subGroupIDs := NewStringSet()
 		if g.SubGroups != nil {
-			for _, subGroup := range *g.SubGroups {
+			for _, subGroup := range g.SubGroups {
 				subGroupIDs.Add(gocloak.PString(subGroup.ID))
 			}
 		}
@@ -377,7 +412,7 @@ func isUserMatchFilter(user *gocloak.User, filter AttributeFilter) bool {
 
 	userAttributes := make(map[string][]string)
 	if user.Attributes != nil {
-		userAttributes = *user.Attributes
+		userAttributes = user.Attributes
 	}
 
 	for k, v := range filter.Attributes {
